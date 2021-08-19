@@ -72,7 +72,7 @@ class XFileShareIE(InfoExtractor):
     )
 
     _TESTS = [{
-        'url': 'http://xvideosharing.com/fq65f94nd2ve',
+        'url': 'https://xvideosharing.com/1lmnptztmjxq.html',
         'md5': '4181f63957e8fe90ac836fa58dc3c8a6',
         'info_dict': {
             'id': 'fq65f94nd2ve',
@@ -98,6 +98,7 @@ class XFileShareIE(InfoExtractor):
                 webpage)]
 
     def _real_extract(self, url):
+        headers = {};
         host, video_id = re.match(self._VALID_URL, url).groups()
 
         url = 'https://%s/' % host + ('embed-%s.html' % video_id if host in ('govid.me', 'vidlo.us') else video_id)
@@ -107,11 +108,11 @@ class XFileShareIE(InfoExtractor):
             raise ExtractorError('Video %s does not exist' % video_id, expected=True)
 
         fields = self._hidden_inputs(webpage)
-
         if fields.get('op') == 'download1':
             countdown = int_or_none(self._search_regex(
                 r'<span id="countdown_str">(?:[Ww]ait)?\s*<span id="cxc">(\d+)</span>\s*(?:seconds?)?</span>',
                 webpage, 'countdown', default=None))
+            #print('fields.get(op) %s' %  url )   
             if countdown:
                 self._sleep(countdown, video_id)
 
@@ -175,12 +176,16 @@ class XFileShareIE(InfoExtractor):
 
             formats = []
             for video_url in urls:
+                #print(video_url)
                 if determine_ext(video_url) == 'm3u8':
                     formats.extend(self._extract_m3u8_formats(
                         video_url, video_id, 'mp4',
                         entry_protocol='m3u8_native', m3u8_id='hls',
                         fatal=False))
-                else:
+                else:  
+                    headers = {
+                         'referer': ('https://%s/' % host)
+                    }
                     formats.append({
                         'url': video_url,
                         'format_id': 'sd',
@@ -198,4 +203,5 @@ class XFileShareIE(InfoExtractor):
             'title': title,
             'thumbnail': thumbnail,
             'formats': formats,
+            'http_headers': headers,
         }
