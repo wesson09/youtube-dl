@@ -308,7 +308,6 @@ from .drtv import (
 )
 from .dtube import DTubeIE
 from .dvtv import DVTVIE
-from .doodstream import DoodStreamIE
 from .dumpert import DumpertIE
 from .defense import DefenseGouvFrIE
 from .discovery import DiscoveryIE
@@ -320,6 +319,7 @@ from .discoverynetworks import DiscoveryNetworksDeIE
 from .discoveryvr import DiscoveryVRIE
 from .disney import DisneyIE
 from .dispeak import DigitallySpeakingIE
+from .doodstream import DoodStreamIE
 from .dropbox import DropboxIE
 from .dw import (
     DWIE,
