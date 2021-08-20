@@ -10,7 +10,7 @@ from .common import InfoExtractor
 
 
 class DoodStreamIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.)?dood\.(?:to|watch|so|la)/[ed]/(?P<id>[a-z0-9]+)'
+    _VALID_URL = r'https?://(?P<host>(?:www\.)?dood\.(?:to|watch|so|la))/[ed]/(?P<id>[a-z0-9]+)'
     _TEST = {
         'url': 'https://dood.la/d/jzrxn12t2s7n',
         'md5': '3207e199426eca7c2aa23c2872e6728a',
@@ -31,10 +31,12 @@ class DoodStreamIE(InfoExtractor):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
+        host = re.match(self._VALID_URL, url).groups()[0]
+        print('https://%s/' % host)
         webpage = self._download_webpage(url, video_id)
 
         if '/d/' in url:
-            url = "https://dood.la" + self._html_search_regex(
+            url = ('https://%s/' % host) + self._html_search_regex(
                 r'<iframe src="(/e/[a-z0-9]+)"', webpage, 'embed')
             video_id = self._match_id(url)
             webpage = self._download_webpage(url, video_id)
@@ -47,7 +49,7 @@ class DoodStreamIE(InfoExtractor):
         description = self._html_search_meta(
             ['og:description', 'description', 'twitter:description'],
             webpage, default=None)
-        auth_url = 'https://dood.la' + self._html_search_regex(
+        auth_url = ('https://%s/' % host) + self._html_search_regex(
             r'(/pass_md5.*?)\'', webpage, 'pass_md5')
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:53.0) Gecko/20100101 Firefox/66.0',
