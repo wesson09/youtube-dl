@@ -48,6 +48,10 @@ from .nexx import (
     NexxIE,
     NexxEmbedIE,
 )
+
+from ..utils import (
+    std_headers,
+)
 from .nbc import NBCSportsVPlayerIE
 from .ooyala import OoyalaIE
 from .rutv import RUTVIE
@@ -2379,10 +2383,11 @@ class GenericIE(InfoExtractor):
         self.to_screen('%s: Requesting header' % video_id)
 
         head_req = HEADRequest(url)
+        
         head_response = self._request_webpage(
             head_req, video_id,
             note=False, errnote='Could not send HEAD request to %s' % url,
-            fatal=False)
+            fatal=False, headers = std_headers)
 
         if head_response is not False:
             # Check for redirect
@@ -2397,8 +2402,12 @@ class GenericIE(InfoExtractor):
         full_response = None
         if head_response is False:
             request = sanitized_Request(url)
-            request.add_header('Accept-Encoding', '*')
-            full_response = self._request_webpage(request, video_id)
+            request.add_header('Accept-Encoding', '*') 
+            #self.to_screen(dir(self));
+            #self.to_screen(dir(self._downloader));
+            #self.to_screen(dir(self));
+            self.to_screen(std_headers);
+            full_response = self._request_webpage(request, video_id ,headers = std_headers)
             head_response = full_response
 
         info_dict = {
