@@ -1320,6 +1320,7 @@ from .tvc import (
     TVCArticleIE,
 )
 from .tver import TVerIE
+from .tvhai import TVhaiIE
 from .tvigle import TvigleIE
 from .tvland import TVLandIE
 from .tvn24 import TVN24IE
