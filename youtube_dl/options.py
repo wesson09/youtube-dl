@@ -579,6 +579,10 @@ def parseOpts(overrideArguments=None):
         action='store_true', dest='quiet', default=False,
         help='Activate quiet mode')
     verbosity.add_option(
+        '--dumpregex',
+        action='store_true', dest='dumpregex', default=False,
+        help='Dump extractors regular expressions')
+    verbosity.add_option(
         '--no-warnings',
         dest='no_warnings', action='store_true', default=False,
         help='Ignore warnings')

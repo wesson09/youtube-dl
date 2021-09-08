@@ -124,6 +124,15 @@ def _real_main(argv=None):
         write_string('Supported TV Providers:\n' + render_table(['mso', 'mso name'], table) + '\n', out=sys.stdout)
         sys.exit(0)
 
+    if opts.dumpregex:
+        for ie in list_extractors(opts.age_limit):
+            if not ie._WORKING or ie.IE_NAME=='generic':
+                continue
+            desc = getattr(ie, 'IE_DESC', ie.IE_NAME)
+            if hasattr(ie, '_VALID_URL'):
+               write_string("".join(ie._VALID_URL.split()) + '\n', out=sys.stdout)
+        sys.exit(0)
+
     # Conflicting, missing and erroneous options
     if opts.usenetrc and (opts.username is not None or opts.password is not None):
         parser.error('using .netrc conflicts with giving username/password')
@@ -437,6 +446,7 @@ def _real_main(argv=None):
         # just for deprecation check
         'autonumber': opts.autonumber if opts.autonumber is True else None,
         'usetitle': opts.usetitle if opts.usetitle is True else None,
+        'dumpregex': opts.dumpregex if opts.dumpregex is True else None,
     }
 
     with YoutubeDL(ydl_opts) as ydl:
