@@ -2402,11 +2402,7 @@ class GenericIE(InfoExtractor):
         full_response = None
         if head_response is False:
             request = sanitized_Request(url)
-            request.add_header('Accept-Encoding', '*') 
-            #self.to_screen(dir(self));
-            #self.to_screen(dir(self._downloader));
-            #self.to_screen(dir(self));
-            self.to_screen(std_headers);
+            request.add_header('Accept-Encoding', '*')
             full_response = self._request_webpage(request, video_id ,headers = std_headers)
             head_response = full_response
 
