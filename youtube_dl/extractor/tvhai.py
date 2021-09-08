@@ -1,9 +1,13 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+import time
+import http.client
 import json
 import re
-
+from typing import *
+from urllib import parse
+from ssl import SSLSocket
 
 from .common import InfoExtractor
 from .turner import TurnerBaseIE
@@ -17,6 +21,179 @@ from ..utils import (
     strip_or_none,
     try_get,
 )
+
+from  ..http3_client import (HttpClient,HttpRequest,HttpConnection);
+import socket
+import ssl
+
+import asyncio
+
+import aioquic
+from aioquic.asyncio.client import connect
+from aioquic.asyncio.protocol import QuicConnectionProtocol
+from aioquic.h0.connection import H0_ALPN, H0Connection
+from aioquic.h3.connection import H3_ALPN, H3Connection
+from aioquic.h3.events import (
+    DataReceived,
+    H3Event,
+    HeadersReceived,
+    PushPromiseReceived,
+)
+from aioquic.quic.configuration import QuicConfiguration
+from aioquic.quic.connection import QuicConnection;
+from aioquic.quic.events import QuicEvent
+from aioquic.tls import CipherSuite, SessionTicket
+#import M2Crypto
+#import OpenSSL
+async def runhttp3request(
+        configuration: QuicConfiguration,
+        urls: List[str],
+        data: Optional[str],
+        include: bool,
+      #  output_dir: Optional[str],
+        local_port: int,
+        zero_rtt: bool,
+) -> str:
+    # parse URL
+    parsed = parse.urlparse(urls[0])
+    assert parsed.scheme in (
+        "https",
+        "wss",
+    ), "Only https:// or wss:// URLs are supported."
+    host = parsed.hostname
+    if parsed.port is not None:
+        port = parsed.port
+    else:
+        port = 443
+
+    async with connect(
+            host,
+            port,
+            configuration=configuration,
+            create_protocol=HttpClient,
+            session_ticket_handler=None,#save_session_ticket,
+            local_port=local_port,
+            wait_connected=not zero_rtt,
+    ) as client:
+        client = cast(HttpClient, client)
+
+        if parsed.scheme == "wss":
+            ws = await client.websocket(urls[0], subprotocols=["chat", "superchat"])
+
+            # send some messages and receive reply
+            for i in range(2):
+                message = "Hello {}, WebSocket!".format(i)
+                print("> " + message)
+                await ws.send(message)
+
+                message = await ws.recv()
+                print("< " + message)
+
+            await ws.close()
+        else:
+            # perform request
+            coros = [
+                perform_http_request(
+                    client=client,
+                    url=url,
+                    data=data,
+                    include=include,
+                    #output_dir=output_dir,
+                )
+                for url in urls
+            ]
+
+
+            res=await asyncio.gather(*coros)
+
+
+            # process http pushes
+            process_http_pushess(client=client, include=include)
+
+            return res
+
+async def perform_http_request(
+    client: HttpClient,
+    url: str,
+    data: Optional[str],
+    include: bool,
+    #output_dir: Optional[str],
+) -> str:
+    # perform request
+    start = time.time()
+    if data is not None:
+        http_events = await client.post(
+            url,
+            data=data.encode(),
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+        method = "POST"
+    else:
+        http_events = await client.get(url)
+        method = "GET"
+    elapsed = time.time() - start
+
+    # print speed
+    octets = 0
+    http3client="";
+    for http_event in http_events:
+        if isinstance(http_event, DataReceived):
+            octets += len(http_event.data)
+    print(
+        "Response received for %s %s : %d bytes in %.1f s (%.3f Mbps)"
+        % (method, parse.urlparse(url).path, octets, elapsed, octets * 8 / elapsed / 1000000)
+    )
+
+    for http_event in http_events:
+        if isinstance(http_event, HeadersReceived) and include:
+            headers = b""
+            for k, v in http_event.headers:
+                headers += k + b": " + v + b"\r\n"
+            if headers:
+                print(headers + b"\r\n")
+        elif isinstance(http_event, DataReceived):
+            http3client=http3client + http_event.data.decode('utf-8')
+    # output response
+    # if output_dir is not None:
+    #     output_path = os.path.join(
+    #         output_dir, os.path.basename(urlparse(url).path) or "index.html"
+    #     )
+    #     with open(output_path, "wb") as output_file:
+    #         write_response(
+    #             http_events=http_events, include=include, output_file=output_file
+    #         )
+    return http3client;
+
+
+def process_http_pushess(
+    client: HttpClient,
+    include: bool,
+    #output_dir: Optional[str],
+) -> None:
+    for _, http_events in client.pushes.items():
+        method = ""
+        octets = 0
+        path = ""
+        for http_event in http_events:
+            if isinstance(http_event, DataReceived):
+                octets += len(http_event.data)
+            elif isinstance(http_event, PushPromiseReceived):
+                for header, value in http_event.headers:
+                    if header == b":method":
+                        method = value.decode()
+                    elif header == b":path":
+                        path = value.decode()
+        print("Push received for %s %s : %s bytes", method, path, octets)
+
+        # output response
+        # if output_dir is not None:
+        #     output_path = os.path.join(
+        #         output_dir, os.path.basename(path) or "index.html"
+        #     )
+        #     with open(output_path, "wb") as output_file:
+        #         write_response(
+        #             http_events=http_events, include=include, output_file=output_file
+        #         )
 
 
 class TVhaiIE(InfoExtractor):#TurnerBaseIE):
@@ -90,39 +267,32 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
         'skip': '404 Not Found',
     }]
 
+
     def _real_extract(self, url):
         show_path = re.match(self._VALID_URL, url).groups()[2]
-        print(show_path);
-        
-        videojsonhandle = self._download_json_handle(
-            'https://api-plhq.tvhaystream.xyz/apiv4/5ee31dd5665f2d19d5af4a99/6121dce66cfe6c0a52ca86de'
-,
-            show_path, 'Downloading video JSON',data=bytes('referrer=http://%3A%2F%2Ftvhai.org&typeend=html','utf-8'), headers={
-           # 'Host': 'api-if.tvhaystream.xyz',
-'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
-'Accept': '*/*',
-'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-'Accept-Encoding': 'gzip, deflate, br',
-'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-#'Content-Length': '44',
-'Connection': 'keep-alive',
-'Sec-Fetch-Dest': 'empty',
-'Sec-Fetch-Mode': 'cors',
-'Sec-Fetch-Site': 'same-site',
-'Pragma': 'no-cache',
-'Cache-Control': 'no-cache',
-                #'Authorization': '%s %s' % (token_type, access_token),
-                #'Referer': '%s' % ('https://play.tvhaystream.xyz'),
-                'Origin': '%s' % ('https://play.tvhaystream.xyz'),
-            },fatal=False)
-            
-        print(videojsonhandle[0]);    
+        #print(show_path);
+
+
+
         webpage=self._download_webpage(url,show_path);
+        propvalpattern='<\s*meta\s+property\s*=\s*\"og:(?P<prop>[\w^\"]+)\"\s+content\s*=\s*\"(?P<value>[\w\W]|[^\"]*)\"\s*\/\s*>'
+        matches = re.finditer(
+            propvalpattern,
+            webpage)
+        ogtitle='';
+        ogdescription='';
+        for m in matches:
+            if m.group(1) == 'title' :
+                ogtitle=m.group(2);
+            elif m.group(1) == 'description' :
+                ogdescription=m.group(2);
         
         matches = re.findall(
         '(?:https?:)?\/\/play\.tvhaystream.xyz\/play\/v1\/(?P<ID>\w+)',
         webpage)
-        
+
+        if not matches :#embed video from other site
+            return;
         video_id= matches[0];  
         prejsonwebpage=self._download_webpage('https://play.tvhaystream.xyz/play/v1/%s' %video_id,video_id,headers={
            # 'Host': 'api-if.tvhaystream.xyz',
@@ -142,7 +312,7 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
                 #'Referer': '%s' % ('https://play.tvhaystream.xyz'),
                 'Origin': '%s' % ('https://play.tvhaystream.xyz'),
             });
-        print(prejsonwebpage);
+       # print(prejsonwebpage);
         
         
     #     var TYPEEND = 'html';
@@ -155,145 +325,82 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
         #assert( idfile == videoid)
         
         matches = re.findall('var idUser = "(?P<ID>\w+)"',prejsonwebpage);        
-        print(matches);
+        #  print(matches);
         idUser=matches[0]
         matches = re.findall('var DOMAIN_API = \'(?P<ID>[\w:\/.-]+)\'',prejsonwebpage);        
-        print(matches);
+        #print(matches);
         DOMAIN_API=matches[0]
         
-        print( '%s%s/%s' % (DOMAIN_API,idUser,video_id));
-        
-        videojsonhandle = self._download_json_handle(
-            '%s%s/%s' % (DOMAIN_API,idUser,video_id),
-            video_id, 'Downloading video JSON',data=bytes('referrer=http://%3A%2F%2Ftvhai.org&typeend=html','utf-8'), headers={
-           # 'Host': 'api-if.tvhaystream.xyz',
-'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
-'Accept': '*/*',
-'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-'Accept-Encoding': 'gzip, deflate, br',
-'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-#'Content-Length': '44',
-'Connection': 'keep-alive',
-'Sec-Fetch-Dest': 'empty',
-'Sec-Fetch-Mode': 'cors',
-'Sec-Fetch-Site': 'same-site',
-'Pragma': 'no-cache',
-'Cache-Control': 'no-cache',
-                #'Authorization': '%s %s' % (token_type, access_token),
-                #'Referer': '%s' % ('https://play.tvhaystream.xyz'),
-                'Origin': '%s' % ('https://play.tvhaystream.xyz'),
-            },fatal=False)
-        
-        
-        print( videojsonhandle )
-        print( videojsonhandle[0] )
-        display_id =  show_path
-        query = '''query {
-  getShowBySlug(slug:"%s") {
-    %%s
-  }
-}''' % show_path
-        if episode_path:
-            query = query % '''title
-    getVideoBySlug(slug:"%s") {
-      _id
-      auth
-      description
-      duration
-      episodeNumber
-      launchDate
-      mediaID
-      seasonNumber
-      poster
-      title
-      tvRating
-    }''' % episode_path
-            ['getVideoBySlug']
-        else:
-            query = query % '''metaDescription
-    title
-    videos(first:1000,sort:["episode_number"]) {
-      edges {
-        node {
-           _id
-           slug
+        #print( '%s%s/%s' % (DOMAIN_API,idUser,video_id));
+        context = ssl._create_default_https_context()
+        # enable PHA for TLS 1.3 connections if available
+        #if context.post_handshake_auth is not None:
+        #    context.post_handshake_auth = True
+        # context.check_hostname=False;
+
+        with socket.create_connection(('api-plhq.tvhaystream.xyz', 443)) as sock:
+            with context.wrap_socket(sock,
+                                     server_hostname='api-plhq.tvhaystream.xyz') as sslsock:
+                dercert = sslsock.getpeercert(True)
+        cert = ssl.DER_cert_to_PEM_cert(dercert)
+
+        # prepare configuration
+        configuration = QuicConfiguration(
+            is_client=True, alpn_protocols=H3_ALPN
+        )
+        configuration.load_verify_locations(cadata=bytes(cert, 'utf-8'))
+        connection = QuicConnection(configuration=configuration);
+        # connect
+        addr = '%s%s/%s' % (DOMAIN_API,idUser,video_id)#"https://api-plhq.tvhaystream.xyz/apiv4/5ee31dd5665f2d19d5af4a99/6121dce66cfe6c0a52ca86de";
+        stream_handler = None
+        local_host = "::"
+        local_port = 31280
+        loop = asyncio.get_event_loop()
+
+        future = loop.run_until_complete(
+            # asyncio.run(
+            runhttp3request(
+                #      addr,
+                # 443,
+                #     configuration=configuration,
+                #     create_protocol=QuicConnectionProtocol,
+                #     session_ticket_handler=None,
+                #     local_port=local_port,
+                #     wait_connected=True
+                configuration,
+                [addr],
+                # 'referrer=http://%3A%2F%2Ftvhai.org&typeend=html',
+                'referrer=http://tvhai.org&typeend=html',
+                False,
+                local_port,
+                True,
+            ));
+
+        # print("func_normal()={future}".format(**vars()))
+        #print(future[0])
+        # r'https?://(?:www\.)?tvhai\.org(([\w^\/-]*)\/)*(?P<id>[^\/?#&]+)'
+
+        VALID_M3U = 'https?://(?:www\.)?(([\w^\/-]*)\/)*(?P<id>[^?#&]+)\.m3u8'
+        matches = re.search(VALID_M3U, future[0])
+        m3u8url = matches[0];
+        loop.close()
+
+        formats = self._extract_m3u8_formats(
+            m3u8url,
+            video_id, 'mp4')
+        #    https://m3u8-plhq.tvhaystream.xyz/m3u8/v3/5/6121dce66cfe6c0a52ca86de/1630510274/b7bfab92ee090d3ddce2989f62e2b1fd.m3u8
+        self._sort_formats(formats)
+        return {
+            'id': video_id,
+            'title': ogtitle,
+            'uploader': 'TODO',
+            'uploader_id': 'TODO',
+            'formats': formats,
+            'description': ogdescription,  # livestream.get('content'),
+            #'thumbnail': '',  # livestream.get('thumbnailUrl'),
+            'is_live': False,
+            # 'timestamp': int_or_none(livestream.get('createdAt'), 1000),
+            # 'view_count': int_or_none(livestream.get('watchingCount')),
         }
-      }
-    }'''
-        show_data = self._download_json(
-            'https://www.adultswim.com/api/search', display_id,
-            data=json.dumps({'query': query}).encode(),
-            headers={'Content-Type': 'application/json'})['data']['getShowBySlug']
-        if episode_path:
-            video_data = show_data['getVideoBySlug']
-            video_id = video_data['_id']
-            episode_title = title = video_data['title']
-            series = show_data.get('title')
-            if series:
-                title = '%s - %s' % (series, title)
-            info = {
-                'id': video_id,
-                'title': title,
-                'description': strip_or_none(video_data.get('description')),
-                'duration': float_or_none(video_data.get('duration')),
-                'formats': [],
-                'subtitles': {},
-                'age_limit': parse_age_limit(video_data.get('tvRating')),
-                'thumbnail': video_data.get('poster'),
-                'timestamp': parse_iso8601(video_data.get('launchDate')),
-                'series': series,
-                'season_number': int_or_none(video_data.get('seasonNumber')),
-                'episode': episode_title,
-                'episode_number': int_or_none(video_data.get('episodeNumber')),
-            }
 
-            auth = video_data.get('auth')
-            media_id = video_data.get('mediaID')
-            if media_id:
-                info.update(self._extract_ngtv_info(media_id, {
-                    # CDN_TOKEN_APP_ID from:
-                    # https://d2gg02c3xr550i.cloudfront.net/assets/asvp.e9c8bef24322d060ef87.bundle.js
-                    'appId': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6ImFzLXR2ZS1kZXNrdG9wLXB0enQ2bSIsInByb2R1Y3QiOiJ0dmUiLCJuZXR3b3JrIjoiYXMiLCJwbGF0Zm9ybSI6ImRlc2t0b3AiLCJpYXQiOjE1MzI3MDIyNzl9.BzSCk-WYOZ2GMCIaeVb8zWnzhlgnXuJTCu0jGp_VaZE',
-                }, {
-                    'url': url,
-                    'site_name': 'AdultSwim',
-                    'auth_required': auth,
-                }))
 
-            if not auth:
-                extract_data = self._download_json(
-                    'https://www.adultswim.com/api/shows/v1/videos/' + video_id,
-                    video_id, query={'fields': 'stream'}, fatal=False) or {}
-                assets = try_get(extract_data, lambda x: x['data']['video']['stream']['assets'], list) or []
-                for asset in assets:
-                    asset_url = asset.get('url')
-                    if not asset_url:
-                        continue
-                    ext = determine_ext(asset_url, mimetype2ext(asset.get('mime_type')))
-                    if ext == 'm3u8':
-                        info['formats'].extend(self._extract_m3u8_formats(
-                            asset_url, video_id, 'mp4', m3u8_id='hls', fatal=False))
-                    elif ext == 'f4m':
-                        continue
-                        # info['formats'].extend(self._extract_f4m_formats(
-                        #     asset_url, video_id, f4m_id='hds', fatal=False))
-                    elif ext in ('scc', 'ttml', 'vtt'):
-                        info['subtitles'].setdefault('en', []).append({
-                            'url': asset_url,
-                        })
-            self._sort_formats(info['formats'])
-
-            return info
-        else:
-            entries = []
-            for edge in show_data.get('videos', {}).get('edges', []):
-                video = edge.get('node') or {}
-                slug = video.get('slug')
-                if not slug:
-                    continue
-                entries.append(self.url_result(
-                    'http://adultswim.com/videos/%s/%s' % (show_path, slug),
-                    'AdultSwim', video.get('_id')))
-            return self.playlist_result(
-                entries, show_path, show_data.get('title'),
-                strip_or_none(show_data.get('metaDescription')))
