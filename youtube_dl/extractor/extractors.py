@@ -440,6 +440,7 @@ from .globo import (
 )
 from .go import GoIE
 from .godtube import GodTubeIE
+from .gogomovies import GogomoviesIE
 from .golem import GolemIE
 from .googledrive import GoogleDriveIE
 from .googlepodcasts import (
