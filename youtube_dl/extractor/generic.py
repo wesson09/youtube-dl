@@ -52,6 +52,7 @@ from .nexx import (
 from ..utils import (
     std_headers,
 )
+
 from .nbc import NBCSportsVPlayerIE
 from .ooyala import OoyalaIE
 from .rutv import RUTVIE
@@ -135,6 +136,8 @@ from .arcpublishing import ArcPublishingIE
 from .medialaan import MedialaanIE
 from .simplecast import SimplecastIE
 
+from .jplayer import GenericJPlayerIE
+from .airtime import  GenericAirtimeIE
 
 class GenericIE(InfoExtractor):
     IE_DESC = 'Generic downloader that works on some sites'
@@ -2501,6 +2504,9 @@ class GenericIE(InfoExtractor):
                     doc,
                     mpd_base_url=full_response.geturl().rpartition('/')[0],
                     mpd_url=url)
+                if len(info_dict['formats'])==0:#hacky nothing found so replace mpd with m3u (work for www.vrt.be/)
+                    info_dict['formats'] = self._extract_m3u8_formats(
+                        full_response.geturl().rpartition('/')[0]+'/.m3u8', video_id, 'mp4')
                 self._sort_formats(info_dict['formats'])
                 return info_dict
             elif re.match(r'^{http://ns\.adobe\.com/f4m/[12]\.0}manifest$', doc.tag):
@@ -3066,6 +3072,18 @@ class GenericIE(InfoExtractor):
         jwplatform_urls = JWPlatformIE._extract_urls(webpage)
         if jwplatform_urls:
             return self.playlist_from_matches(jwplatform_urls, video_id, video_title, ie=JWPlatformIE.ie_key())
+
+        # Look for JPlayer embeds (assumed live)
+        jplayer_urls = GenericJPlayerIE._extract_url(webpage)
+        if jplayer_urls:
+            return self.url_result(self._proto_relative_url(jplayer_urls), GenericJPlayerIE.ie_key())
+            #return self.playlist_from_matches(jplayer_urls, video_id, video_title, ie=GenericJPlayerIE.ie_key())
+
+        # Look for Airtime/Libretime embeds (assumed live)
+        airtime_urls = GenericAirtimeIE._extract_url(webpage)
+        if airtime_urls:
+            return self.url_result(self._proto_relative_url(airtime_urls), GenericAirtimeIE.ie_key())
+            #return self.playlist_from_matches(airtime_urls, video_id, video_title, ie=GenericAirtimeIE.ie_key())
 
         # Look for Digiteka embeds
         digiteka_url = DigitekaIE._extract_url(webpage)
