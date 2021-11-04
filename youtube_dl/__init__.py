@@ -43,7 +43,7 @@ from .downloader import (
 from .extractor import gen_extractors, list_extractors
 from .extractor.adobepass import MSO_INFO
 from .YoutubeDL import YoutubeDL
-
+import re
 
 def _real_main(argv=None):
     # Compatibility fixes for Windows
@@ -126,11 +126,25 @@ def _real_main(argv=None):
 
     if opts.dumpregex:
         for ie in list_extractors(opts.age_limit):
-            if not ie._WORKING or ie.IE_NAME=='generic':
+            if not ie._WORKING  or ie.IE_NAME=='UnicodeBOM'  or ie.IE_NAME.find('Generic') > -1:
                 continue
             desc = getattr(ie, 'IE_DESC', ie.IE_NAME)
             if hasattr(ie, '_VALID_URL'):
-               write_string("".join(ie._VALID_URL.split()) + '\n', out=sys.stdout)
+               tmp=ie._VALID_URL.split('\n');
+               j='';
+               for tm in tmp :
+
+                   if tm[0]=='#' :#entire line comment
+                       tm='';
+                   else:  #line ending comment
+                       matches = re.findall(r'(?P<kata>.*[^\S])(?P<comment>\#.*)', tm);
+                       #if matches:
+                       #    tm = matches[0][0]
+                       tm=re.sub('(?P<comment> \#.*)','',tm);
+                       j = j + "".join(tm.split());
+
+               write_string(#ie.IE_NAME+' '+
+               j + '\n', out=sys.stdout)
         sys.exit(0)
 
     # Conflicting, missing and erroneous options
