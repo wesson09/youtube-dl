@@ -83,6 +83,7 @@ from .atvat import ATVAtIE
 from .audimedia import AudiMediaIE
 from .audioboom import AudioBoomIE
 from .audiomack import AudiomackIE, AudiomackAlbumIE
+from .audacy import AudacyHLSHackerIE
 from .awaan import (
     AWAANIE,
     AWAANVideoIE,
