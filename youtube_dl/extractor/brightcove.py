@@ -335,6 +335,21 @@ class BrightcoveLegacyIE(InfoExtractor):
         # elif 'playerKey' in query:
         #     player_key = query['playerKey']
         #     return self._get_playlist_info(player_key[0])
+
+        #consider url is already m3u8
+        formats = self._extract_m3u8_formats(url, video_id, 'mp4')
+        if len(formats)>0:
+            self._sort_formats(formats)
+            return {
+                'id': video_id,
+                'title': 'Brightcove HLS',
+                'uploader': 'TODO',
+                'uploader_id': 'TODO',
+                'formats': formats,
+                'description': 'Brightcove HLS',
+                'is_live': False,
+            }
+
         raise UnsupportedError(url)
 
 
