@@ -319,6 +319,10 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
         ,DOMAIN_API);
         hostname=matches[0][2];
 
+        matches = re.findall('var DOMAIN_LIST_RD[ \t\n]=[ \t\n]\[(?P<domainlist>.*)\]',prejsonwebpage);
+        matches = re.findall('\"(?P<domain>[^\"]*)\"',matches[0]);
+
+        DOMAIN_LIST_RD= matches;
 
 
         apisingok=self._download_webpage('https://api-sing-02.tvhaystream.xyz/apiv2/views/%s'%video_id,show_path+'bis');
@@ -423,21 +427,31 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
             # EXT-X-PLAYLIST-TYPE:VOD
             # EXTINF:10,
             headers = {'Accept': '*/*',
-                       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
-                       "Origin": "https://play.tvhaystream.xyz",  "referer": "https://apird-tvhai.rdgogo.xyz",
-                       "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty",
-                       "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "TE": "trailers",
-                       "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3", "Pragma": "no-cache", "DNT": "1",
-                       "Sec-GPC": "1", "Connection": "keep-alive"}
+                'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
+                      # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
+                      # "Origin": "https://play.tvhaystream.xyz",  "referer": "https://apird-tvhai.rdgogo.xyz",
+                      # "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty",
+                      # "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "TE": "trailers",
+                      # "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3", "Pragma": "no-cache", "DNT": "1",
+                      # "Sec-GPC": "1", "Connection": "keep-alive"
+                       }
             headreqs=[];
 
+            idxdomain=0;
             idx=0
             while idx <len (requestresult['data'][1]):
                 id2=0
                 headreqs2=[]
                 while (id2+idx<len (requestresult['data'][1]) ) and (id2<50) :
                     v=requestresult['data'][1][idx+id2]
-                    thr=HeadRequest('https://apird-tvhai.rdgogo.xyz/rdv5/%s/%s/%s.rd' % (requestresult['quaity'], idUser, v),v,headers,self);
+                    domain=DOMAIN_LIST_RD[idxdomain];
+                    idxdomain=idxdomain+1
+                    if idxdomain>=len(DOMAIN_LIST_RD):
+                        idxdomain=0;
+                    #thr=HeadRequest('https://apird-tvhai.rdgogo.xyz/rdv5/%s/%s/%s.rd' % (requestresult['quaity'], idUser, v),v,headers,self);
+                    thr = HeadRequest(
+                        'https://%s/stream/v5/%s.html' % (domain, v), v,
+                        headers, self);
                     thr.set_downloader(self._downloader)
                     headreqs2.append(thr);
                     id2=id2+1;
@@ -455,9 +469,14 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
 
 
             idx=0
+            idxdomain=0
             for v in requestresult['data'][1]:
+                domain = DOMAIN_LIST_RD[idxdomain];
+                idxdomain = idxdomain + 1
+                if idxdomain >= len(DOMAIN_LIST_RD):
+                    idxdomain = 0;
                 v1= re.findall('\w+$',v);
-                m3Uchunk='https://apird-tvhai.rdgogo.xyz/rdv5/%s/%s/%s.rd' %(requestresult['quaity'],idUser,v)
+                m3Uchunk='https://%s/stream/v5/%s.html' % (domain, v)
 
                 # metachunk = self._request_webpage(m3Uchunk, show_path, #'note', 'errnote', fatal, data=data,
                 #                                    headers=headers,
