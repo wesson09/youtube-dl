@@ -2506,7 +2506,7 @@ class GenericIE(InfoExtractor):
                     mpd_url=url)
                 if len(info_dict['formats'])==0:#hacky nothing found so replace mpd with m3u (work for www.vrt.be/)
                     info_dict['formats'] = self._extract_m3u8_formats(
-                        full_response.geturl().rpartition('/')[0]+'/.m3u8', video_id, 'mp4')
+                        full_response.geturl().rpartition('/')[0]+'/.m3u8', video_id, 'mp4', headers = std_headers, fatal=False)
                 self._sort_formats(info_dict['formats'])
                 return info_dict
             elif re.match(r'^{http://ns\.adobe\.com/f4m/[12]\.0}manifest$', doc.tag):
