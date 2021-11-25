@@ -4358,7 +4358,7 @@ class YoutubePlaylistIE(InfoExtractor):
                                 %(invidious)s
                             )
                             /.*?\?.*?\blist=
-                        )?
+                        )
                         (?P<id>%(playlist_id)s)
                      )''' % {
         'playlist_id': YoutubeBaseInfoExtractor._PLAYLIST_ID_RE,
