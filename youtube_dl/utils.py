@@ -3805,6 +3805,201 @@ def detect_exe_version(output, version_re=None, unrecognized='present'):
         return unrecognized
 
 
+def traverse_obj(
+        obj, *path_list, default=None, expected_type=None, get_all=True,
+        casesense=True, is_user_input=False, traverse_string=False):
+    ''' Traverse nested list/dict/tuple
+    @param path_list        A list of paths which are checked one by one.
+                            Each path is a list of keys where each key is a string,
+                            a function, a tuple of strings or "...".
+                            When a fuction is given, it takes the key as argument and
+                            returns whether the key matches or not. When a tuple is given,
+                            all the keys given in the tuple are traversed, and
+                            "..." traverses all the keys in the object
+    @param default          Default value to return
+    @param expected_type    Only accept final value of this type (Can also be any callable)
+    @param get_all          Return all the values obtained from a path or only the first one
+    @param casesense        Whether to consider dictionary keys as case sensitive
+    @param is_user_input    Whether the keys are generated from user input. If True,
+                            strings are converted to int/slice if necessary
+    @param traverse_string  Whether to traverse inside strings. If True, any
+                            non-compatible object will also be converted into a string
+    # TODO: Write tests
+    '''
+    if not casesense:
+        _lower = lambda k: (k.lower() if isinstance(k, str) else k)
+        path_list = (map(_lower, variadic(path)) for path in path_list)
+
+    def _traverse_obj(obj, path, _current_depth=0):
+        nonlocal depth
+        path = tuple(variadic(path))
+        for i, key in enumerate(path):
+            if obj is None:
+                return None
+            if isinstance(key, (list, tuple)):
+                obj = [_traverse_obj(obj, sub_key, _current_depth) for sub_key in key]
+                key = ...
+            if key is ...:
+                obj = (obj.values() if isinstance(obj, dict)
+                       else obj if isinstance(obj, (list, tuple, LazyList))
+                       else str(obj) if traverse_string else [])
+                _current_depth += 1
+                depth = max(depth, _current_depth)
+                return [_traverse_obj(inner_obj, path[i + 1:], _current_depth) for inner_obj in obj]
+            elif callable(key):
+                if isinstance(obj, (list, tuple, LazyList)):
+                    obj = enumerate(obj)
+                elif isinstance(obj, dict):
+                    obj = obj.items()
+                else:
+                    if not traverse_string:
+                        return None
+                    obj = str(obj)
+                _current_depth += 1
+                depth = max(depth, _current_depth)
+                return [_traverse_obj(v, path[i + 1:], _current_depth) for k, v in obj if key(k)]
+            elif isinstance(obj, dict) and not (is_user_input and key == ':'):
+                obj = (obj.get(key) if casesense or (key in obj)
+                       else next((v for k, v in obj.items() if _lower(k) == key), None))
+            else:
+                if is_user_input:
+                    key = (int_or_none(key) if ':' not in key
+                           else slice(*map(int_or_none, key.split(':'))))
+                    if key == slice(None):
+                        return _traverse_obj(obj, (..., *path[i + 1:]), _current_depth)
+                if not isinstance(key, (int, slice)):
+                    return None
+                if not isinstance(obj, (list, tuple, LazyList)):
+                    if not traverse_string:
+                        return None
+                    obj = str(obj)
+                try:
+                    obj = obj[key]
+                except IndexError:
+                    return None
+        return obj
+
+    if isinstance(expected_type, type):
+        type_test = lambda val: val if isinstance(val, expected_type) else None
+    elif expected_type is not None:
+        type_test = expected_type
+    else:
+        type_test = lambda val: val
+
+    for path in path_list:
+        depth = 0
+        val = _traverse_obj(obj, path)
+        if val is not None:
+            if depth:
+                for _ in range(depth - 1):
+                    val = itertools.chain.from_iterable(v for v in val if v is not None)
+                val = [v for v in map(type_test, val) if v is not None]
+                if val:
+                    return val if get_all else val[0]
+            else:
+                val = type_test(val)
+                if val is not None:
+                    return val
+    return default
+
+
+def traverse_dict(dictn, keys, casesense=True):
+    ''' For backward compatibility. Do not use '''
+    return traverse_obj(dictn, keys, casesense=casesense,
+                        is_user_input=True, traverse_string=True)
+
+
+def variadic(x, allowed_types=(str, bytes)):
+    return x if isinstance(x, collections.abc.Iterable) and not isinstance(x, allowed_types) else (x,)
+
+
+class LazyList(collections.abc.Sequence):
+    ''' Lazy immutable list from an iterable
+    Note that slices of a LazyList are lists and not LazyList'''
+
+    class IndexError(IndexError):
+        pass
+
+    def __init__(self, iterable):
+        self.__iterable = iter(iterable)
+        self.__cache = []
+        self.__reversed = False
+
+    def __iter__(self):
+        if self.__reversed:
+            # We need to consume the entire iterable to iterate in reverse
+            yield from self.exhaust()
+            return
+        yield from self.__cache
+        for item in self.__iterable:
+            self.__cache.append(item)
+            yield item
+
+    def __exhaust(self):
+        self.__cache.extend(self.__iterable)
+        # Discard the emptied iterable to make it pickle-able
+        self.__iterable = []
+        return self.__cache
+
+    def exhaust(self):
+        ''' Evaluate the entire iterable '''
+        return self.__exhaust()[::-1 if self.__reversed else 1]
+
+    @staticmethod
+    def __reverse_index(x):
+        return None if x is None else -(x + 1)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            if self.__reversed:
+                idx = slice(self.__reverse_index(idx.start), self.__reverse_index(idx.stop), -(idx.step or 1))
+            start, stop, step = idx.start, idx.stop, idx.step or 1
+        elif isinstance(idx, int):
+            if self.__reversed:
+                idx = self.__reverse_index(idx)
+            start, stop, step = idx, idx, 0
+        else:
+            raise TypeError('indices must be integers or slices')
+        if ((start or 0) < 0 or (stop or 0) < 0
+                or (start is None and step < 0)
+                or (stop is None and step > 0)):
+            # We need to consume the entire iterable to be able to slice from the end
+            # Obviously, never use this with infinite iterables
+            self.__exhaust()
+            try:
+                return self.__cache[idx]
+            except IndexError as e:
+                raise self.IndexError(e) from e
+        n = max(start or 0, stop or 0) - len(self.__cache) + 1
+        if n > 0:
+            self.__cache.extend(itertools.islice(self.__iterable, n))
+        try:
+            return self.__cache[idx]
+        except IndexError as e:
+            raise self.IndexError(e) from e
+
+    def __bool__(self):
+        try:
+            self[-1] if self.__reversed else self[0]
+        except self.IndexError:
+            return False
+        return True
+
+    def __len__(self):
+        self.__exhaust()
+        return len(self.__cache)
+
+    def reverse(self):
+        self.__reversed = not self.__reversed
+        return self
+
+    def __repr__(self):
+        # repr and str should mimic a list. So we exhaust the iterable
+        return repr(self.exhaust())
+
+    def __str__(self):
+        return repr(self.exhaust())
+
 class PagedList(object):
     def __len__(self):
         # This is only useful for tests
@@ -4311,9 +4506,12 @@ def age_restricted(content_limit, age_limit):
     return age_limit < content_limit
 
 
+""" lazy JSON detection by examining its first byte. """
+def is_json(first_bytes):
+    return first_bytes.decode('utf-8')[0] in['[','{'];
+
 def is_html(first_bytes):
     """ Detect whether a file contains HTML by examining its first bytes. """
-
     BOMS = [
         (b'\xef\xbb\xbf', 'utf-8'),
         (b'\x00\x00\xfe\xff', 'utf-32-be'),
