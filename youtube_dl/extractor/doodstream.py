@@ -10,7 +10,7 @@ from .common import InfoExtractor
 
 
 class DoodStreamIE(InfoExtractor):
-    _VALID_URL = r'https?://(?P<host>(?:www\.)?dood\.(?:to|watch|so|la))/[ed]/(?P<id>[a-z0-9]+)'
+    _VALID_URL = r'https?://(?P<host>(?:www\.)?dood\.(?:[^/]*))/[ed]/(?P<id>[a-z0-9]+)'
     _TEST = {
         'url': 'https://dood.la/d/jzrxn12t2s7n',
         'md5': '3207e199426eca7c2aa23c2872e6728a',
@@ -61,7 +61,7 @@ class DoodStreamIE(InfoExtractor):
 
         return {
             'id': video_id,
-            'title': title,
+            'title': video_id,
             'url': final_url,
             'http_headers': headers,
             'ext': 'mp4',
