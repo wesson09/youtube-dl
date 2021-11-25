@@ -126,7 +126,7 @@ def _real_main(argv=None):
 
     if opts.dumpregex:
         for ie in list_extractors(opts.age_limit):
-            if not ie._WORKING  or ie.IE_NAME=='UnicodeBOM'  or ie.IE_NAME.find('Generic') > -1:
+            if not ie._WORKING  or ie.IE_NAME=='UnicodeBOM'  or ie.IE_NAME.find('generic') > -1:
                 continue
             desc = getattr(ie, 'IE_DESC', ie.IE_NAME)
             if hasattr(ie, '_VALID_URL'):
@@ -143,7 +143,7 @@ def _real_main(argv=None):
                        tm=re.sub('(?P<comment> \#.*)','',tm);
                        j = j + "".join(tm.split());
 
-               write_string(#ie.IE_NAME+' '+
+               write_string( #ie.IE_NAME+' '+
                j + '\n', out=sys.stdout)
         sys.exit(0)
 
