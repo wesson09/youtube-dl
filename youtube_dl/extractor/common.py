@@ -968,10 +968,11 @@ class InfoExtractor(object):
             urls, playlist_id=playlist_id, playlist_title=playlist_title)
 
     @staticmethod
-    def playlist_result(entries, playlist_id=None, playlist_title=None, playlist_description=None):
+    def playlist_result(entries, playlist_id=None, playlist_title=None, playlist_description=None, **kwargs):
         """Returns a playlist"""
         video_info = {'_type': 'playlist',
                       'entries': entries}
+        video_info.update(kwargs)
         if playlist_id:
             video_info['id'] = playlist_id
         if playlist_title:
@@ -1648,6 +1649,29 @@ class InfoExtractor(object):
         m3u8_doc, urlh = res
         m3u8_url = urlh.geturl()
 
+        islive,res= self._parse_m3u8_formats(
+            m3u8_doc, m3u8_url, ext=ext, entry_protocol=entry_protocol,
+            preference=preference, m3u8_id=m3u8_id, live=live)
+        return res
+
+
+    def _extract_m3u8_live_and_formats(self, m3u8_url, video_id, ext=None,
+                              entry_protocol='m3u8', preference=None,
+                              m3u8_id=None, note=None, errnote=None,
+                              fatal=True, live=False, data=None, headers={},
+                              query={}):
+        res = self._download_webpage_handle(
+            m3u8_url, video_id,
+            note=note or 'Downloading m3u8 information',
+            errnote=errnote or 'Failed to download m3u8 information',
+            fatal=fatal, data=data, headers=headers, query=query)
+
+        if res is False:
+            return False,[]
+
+        m3u8_doc, urlh = res
+        m3u8_url = urlh.geturl()
+
         return self._parse_m3u8_formats(
             m3u8_doc, m3u8_url, ext=ext, entry_protocol=entry_protocol,
             preference=preference, m3u8_id=m3u8_id, live=live)
@@ -1655,11 +1679,12 @@ class InfoExtractor(object):
     def _parse_m3u8_formats(self, m3u8_doc, m3u8_url, ext=None,
                             entry_protocol='m3u8', preference=None,
                             m3u8_id=None, live=False):
+        islive=False;
         if '#EXT-X-FAXS-CM:' in m3u8_doc:  # Adobe Flash Access
-            return []
+            return False,[]
 
         if re.search(r'#EXT-X-SESSION-KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
-            return []
+            return False,[]
 
         formats = []
 
@@ -1685,7 +1710,11 @@ class InfoExtractor(object):
         # clearly detect media playlist with this criterion.
 
         if '#EXT-X-TARGETDURATION' in m3u8_doc:  # media playlist, return as is
-            return [{
+            if not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist not supported
+              return True,[{
+                'live': True,
+            }]
+            return False,[{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
                 'ext': ext,
@@ -1711,6 +1740,9 @@ class InfoExtractor(object):
                 for v in (m3u8_id, group_id, name):
                     if v:
                         format_id.append(v)
+                sub = self._extract_m3u8_formats(format_url(media_url), '-'.join(format_id), 'mp4')
+                if 'live' in sub[0] and sub[0]['live']:
+                    live=True;
                 f = {
                     'format_id': '-'.join(format_id),
                     'url': format_url(media_url),
@@ -1743,6 +1775,7 @@ class InfoExtractor(object):
             rendition = stream_group[0]
             return rendition.get('NAME') or stream_group_id
 
+
         # parse EXT-X-MEDIA tags before EXT-X-STREAM-INF in order to have the
         # chance to detect video only formats when EXT-X-STREAM-INF tags
         # precede EXT-X-MEDIA tags in HLS manifest such as [3].
@@ -1769,6 +1802,12 @@ class InfoExtractor(object):
                 if not live:
                     format_id.append(stream_name if stream_name else '%d' % (tbr if tbr else len(formats)))
                 manifest_url = format_url(line.strip())
+
+                sub = self._extract_m3u8_formats(manifest_url, '-'.join(format_id), 'mp4')
+                if 'live' in sub[0] and sub[0]['live']:
+                    live=True;
+
+
                 f = {
                     'format_id': '-'.join(format_id),
                     'url': manifest_url,
@@ -1828,7 +1867,8 @@ class InfoExtractor(object):
                     formats.append(http_f)
 
                 last_stream_inf = {}
-        return formats
+
+        return live,formats
 
     @staticmethod
     def _xpath_ns(path, namespace=None):
@@ -2523,7 +2563,7 @@ class InfoExtractor(object):
         _MEDIA_TAG_NAME_RE = r'(?:(?:amp|dl8(?:-live)?)-)?(video|audio)'
         media_tags = [(media_tag, media_tag_name, media_type, '')
                       for media_tag, media_tag_name, media_type
-                      in re.findall(r'(?s)(<(%s)[^>]*/>)' % _MEDIA_TAG_NAME_RE, webpage)]
+                      in re.findall(r'(?s)(<(%s)[^>]*>)' % _MEDIA_TAG_NAME_RE, webpage)]
         media_tags.extend(re.findall(
             # We only allow video|audio followed by a whitespace or '>'.
             # Allowing more characters may end up in significant slow down (see
@@ -3018,7 +3058,19 @@ class InfoExtractor(object):
 
     def _generic_title(self, url):
         return compat_urllib_parse_unquote(os.path.splitext(url_basename(url))[0])
-
+    @staticmethod
+    def _availability(is_private=None, needs_premium=None, needs_subscription=None, needs_auth=None, is_unlisted=None):
+        all_known = all(map(
+            lambda x: x is not None,
+            (is_private, needs_premium, needs_subscription, needs_auth, is_unlisted)))
+        return (
+            'private' if is_private
+            else 'premium_only' if needs_premium
+            else 'subscriber_only' if needs_subscription
+            else 'needs_auth' if needs_auth
+            else 'unlisted' if is_unlisted
+            else 'public' if all_known
+            else None)
 
 class SearchInfoExtractor(InfoExtractor):
     """
