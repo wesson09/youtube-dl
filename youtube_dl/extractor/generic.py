@@ -22,6 +22,7 @@ from ..utils import (
     HEADRequest,
     int_or_none,
     is_html,
+    is_json,
     js_to_json,
     KNOWN_EXTENSIONS,
     merge_dicts,
@@ -2390,7 +2391,8 @@ class GenericIE(InfoExtractor):
         head_response = self._request_webpage(
             head_req, video_id,
             note=False, errnote='Could not send HEAD request to %s' % url,
-            fatal=False, headers = std_headers)
+            fatal=False)#, headers = std_headers
+
 
         if head_response is not False:
             # Check for redirect
@@ -2419,9 +2421,10 @@ class GenericIE(InfoExtractor):
         content_type = head_response.headers.get('Content-Type', '').lower()
         m = re.match(r'^(?P<type>audio|video|application(?=/(?:ogg$|(?:vnd\.apple\.|x-)?mpegurl)))/(?P<format_id>[^;\s]+)', content_type)
         if m:
+            livedetected=False
             format_id = compat_str(m.group('format_id'))
             if format_id.endswith('mpegurl'):
-                formats = self._extract_m3u8_formats(url, video_id, 'mp4')
+                livedetected,formats = self._extract_m3u8_live_and_formats(url, video_id, 'mp4')
             elif format_id == 'f4m':
                 formats = self._extract_f4m_formats(url, video_id)
             else:
@@ -2433,6 +2436,7 @@ class GenericIE(InfoExtractor):
                 info_dict['direct'] = True
             self._sort_formats(formats)
             info_dict['formats'] = formats
+            info_dict['is_live'] = livedetected
             return info_dict
 
         if not self._downloader.params.get('test', False) and not is_intentional:
@@ -2460,10 +2464,11 @@ class GenericIE(InfoExtractor):
             info_dict['formats'] = self._extract_m3u8_formats(url, video_id, 'mp4')
             self._sort_formats(info_dict['formats'])
             return info_dict
-
         # Maybe it's a direct link to a video?
         # Be careful not to download the whole thing!
-        if not is_html(first_bytes):
+        if  (not is_html(first_bytes)) and (not is_json(first_bytes)):
+            if len(first_bytes) < 128:  # HTML should be att least 120 bytes
+                return [];
             self._downloader.report_warning(
                 'URL could be a direct video link, returning it as such.')
             info_dict.update({
