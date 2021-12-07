@@ -1714,12 +1714,21 @@ class InfoExtractor(object):
               return True,[{
                 'live': True,
             }]
+            # get all fragments uri
+            fragments = []
+            for line in m3u8_doc.splitlines():
+                if not line.startswith('#'):
+                    whichone = line.split(';');
+                    print(whichone)  # ??? to do seek url
+                    path=whichone[len(whichone) - 1];
+                    fragments.append({'path':format_url(path)})
             return False,[{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
                 'ext': ext,
                 'protocol': entry_protocol,
                 'preference': preference,
+                'fragments':fragments,
             }]
 
         groups = {}
@@ -1751,6 +1760,7 @@ class InfoExtractor(object):
                     'ext': ext,
                     'protocol': entry_protocol,
                     'preference': preference,
+                    'subformats':sub,#composite streams of this format
                 }
                 if media_type == 'AUDIO':
                     f['vcodec'] = 'none'
@@ -1807,7 +1817,6 @@ class InfoExtractor(object):
                 if 'live' in sub[0] and sub[0]['live']:
                     live=True;
 
-
                 f = {
                     'format_id': '-'.join(format_id),
                     'url': manifest_url,
@@ -1817,6 +1826,7 @@ class InfoExtractor(object):
                     'fps': float_or_none(last_stream_inf.get('FRAME-RATE')),
                     'protocol': entry_protocol,
                     'preference': preference,
+                    'subformats':sub,#composite streams of this format
                 }
                 resolution = last_stream_inf.get('RESOLUTION')
                 if resolution:
