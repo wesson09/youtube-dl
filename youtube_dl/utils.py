@@ -4508,7 +4508,12 @@ def age_restricted(content_limit, age_limit):
 
 """ lazy JSON detection by examining its first byte. """
 def is_json(first_bytes):
-    return first_bytes.decode('utf-8')[0] in['[','{'];
+    try:
+        return first_bytes.decode('utf-8')[0] in['[','{',
+                                                 #blacklist js too
+                                                 '('];
+    except:
+        return False;
 
 def is_html(first_bytes):
     """ Detect whether a file contains HTML by examining its first bytes. """
@@ -4519,14 +4524,17 @@ def is_html(first_bytes):
         (b'\xff\xfe', 'utf-16-le'),
         (b'\xfe\xff', 'utf-16-be'),
     ]
-    for bom, enc in BOMS:
-        if first_bytes.startswith(bom):
-            s = first_bytes[len(bom):].decode(enc, 'replace')
-            break
-    else:
-        s = first_bytes.decode('utf-8', 'replace')
+    try:
+        for bom, enc in BOMS:
+            if first_bytes.startswith(bom):
+                s = first_bytes[len(bom):].decode(enc, 'replace')
+                break
+        else:
+            s = first_bytes.decode('utf-8', 'replace')
 
-    return re.match(r'^\s*<', s)
+        return re.match(r'^\s*<', s)
+    except:
+        return False;
 
 
 def determine_protocol(info_dict):

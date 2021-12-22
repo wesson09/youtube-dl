@@ -893,10 +893,10 @@ from .palcomp3 import (
     PalcoMP3VideoIE,
 )
 from .pandoratv import PandoraTVIE
-from .paramountplus import (
-     ParamountPlusIE,
-     ParamountPlusSeriesIE,
-)
+# from .paramountplus import ( #VSO user report it doesn't work
+#      ParamountPlusIE,
+#      ParamountPlusSeriesIE,
+# )
 from .parliamentliveuk import ParliamentLiveUKIE
 from .patreon import PatreonIE
 from .pbs import PBSIE
@@ -1371,10 +1371,10 @@ from .twitter import (
     TwitterAmplifyIE,
     TwitterBroadcastIE,
 )
-from .udemy import (
-    UdemyIE,
-    UdemyCourseIE
-)
+# from .udemy import ( broken and work with HLS
+#     UdemyIE,
+#     UdemyCourseIE
+# )
 from .udn import UDNEmbedIE
 from .ufctv import (
     UFCTVIE,

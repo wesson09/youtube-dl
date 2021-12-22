@@ -1968,6 +1968,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                 (?:embed|v|p)/[0-9A-Za-z_-]{11}.*?)
             \1''', webpage)]
 
+
         # lazyYT YouTube embed
         entries.extend(list(map(
             unescapeHTML,
@@ -4317,6 +4318,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
             if self._downloader.params.get('noplaylist'):
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
                 return self.url_result(video_id, ie=YoutubeIE.ie_key(), video_id=video_id)
+
         def get_mobj(url):
             mobj = self._url_re.match(url).groupdict()
             mobj.update((k, '') for k, v in mobj.items() if v is None)
@@ -4345,7 +4347,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                     pre = 'https://www.youtube.com/channel/%s' % item_id
         if is_channel and not tab and 'no-youtube-channel-redirect' not in compat_opts:
             # Home URLs should redirect to /videos/
-            self.report_warning(
+            raise ExtractorError(
                 'A channel/user page was given. All the channel\'s videos will be downloaded. '
                 'To download only the videos in the home page, add a "/featured" to the URL')
             tab = '/videos'
@@ -4354,7 +4356,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
         mobj = get_mobj(url)
 
         # Handle both video/playlist URLs
-        qs = compat_parse_qs(compat_urllib_parse_urlparse(url).query)
+        qs = parse_qs(url)
         video_id = qs.get('v', [None])[0]
         playlist_id = qs.get('list', [None])[0]
 
@@ -4368,7 +4370,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
             mobj = get_mobj(url)
 
         if video_id and playlist_id:
-            if False:#self.get_param('noplaylist'):
+            if self._downloader.params.get('noplaylist'):
                 self.to_screen('Downloading just video %s because of --no-playlist' % video_id)
                 return self.url_result(f'https://www.youtube.com/watch?v={video_id}', ie=YoutubeIE.ie_key(), video_id=video_id)
             self.to_screen('Downloading playlist %s; add --no-playlist to just download video %s' % (playlist_id, video_id))
@@ -4397,7 +4399,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                     else:
                         self.report_warning('The URL does not have a %s tab. %s is being downloaded instead' % (mobj['tab'][1:], tab_name))
 
-        #self.write_debug('Final URL: %s' % url)
+        self.report_warning('Final URL: %s' % url)
 
         # YouTube sometimes provides a button to reload playlist with unavailable videos.
         if 'no-youtube-unavailable-videos' not in compat_opts:

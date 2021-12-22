@@ -1719,9 +1719,9 @@ class InfoExtractor(object):
             for line in m3u8_doc.splitlines():
                 if not line.startswith('#'):
                     whichone = line.split(';');
-                    print(whichone)  # ??? to do seek url
+                    #print(whichone)  # ??? to do seek url
                     path=whichone[len(whichone) - 1];
-                    fragments.append({'path':format_url(path)})
+                    fragments.append({'url':format_url(path)})
             return False,[{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
@@ -2254,7 +2254,9 @@ class InfoExtractor(object):
                         url_el = representation.find(_add_ns('BaseURL'))
                         filesize = int_or_none(url_el.attrib.get('{http://youtube.com/yt/2012/10/10}contentLength') if url_el is not None else None)
                         bandwidth = int_or_none(representation_attrib.get('bandwidth'))
+                        urlfrag=url_el.text.split(',')
                         f = {
+                            #'black_fragments':[{'path':urlfrag[0],'duration':0}],
                             'format_id': '%s-%s' % (mpd_id, representation_id) if mpd_id else representation_id,
                             'manifest_url': mpd_url,
                             'ext': mimetype2ext(mime_type),

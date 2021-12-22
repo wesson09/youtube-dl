@@ -20,7 +20,10 @@ import struct
 import subprocess
 import sys
 import xml.etree.ElementTree
-
+try:
+    import collections.abc as compat_collections_abc
+except ImportError:
+    import collections as compat_collections_abc
 
 try:
     import urllib.request as compat_urllib_request
