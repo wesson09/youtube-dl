@@ -168,12 +168,12 @@ class ShowUpTVIE(InfoExtractor):
         f={}
         if self._downloader.params.get('dump_single_json') :
             f = {
-                'url': wssurl,
+                'url': wssurl,'ext': 'mp4',
                 'protocol': 'wss',
             }
         else:
             f={
-                'url':wssurl,
+                'url':wssurl,'ext': 'mp4',
                 'protocol':'wss',
                 'on_open':on_open_stream,
                 'on_error':on_error_stream,
