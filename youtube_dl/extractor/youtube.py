@@ -2735,15 +2735,15 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             reason = self._get_text(pemr, 'reason') or get_first(playability_statuses, 'reason')
             subreason = clean_html(self._get_text(pemr, 'subreason') or '')
             if subreason:
-                if subreason == 'The uploader has not made this video available in your country.':
+                if subreason == 'This video is not available':#The uploader has not made this video available in your country.':
                     countries = get_first(microformats, 'availableCountries')
                     if not countries:
                         regions_allowed = search_meta('regionsAllowed')
                         countries = regions_allowed.split(',') if regions_allowed else None
-                    self.raise_geo_restricted(subreason, countries, metadata_available=True)
+                    self.raise_geo_restricted(subreason, countries);#, metadata_available=True)
                 reason += f'. {subreason}'
             if reason:
-                self.raise_no_formats(reason, expected=True)
+                self._report_alerts(reason, Fatal=True)
 
         keywords = get_first(video_details, 'keywords', expected_type=list) or []
         if not keywords and webpage:
