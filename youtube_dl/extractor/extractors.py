@@ -531,6 +531,8 @@ from .jamendo import (
     JamendoIE,
     JamendoAlbumIE,
 )
+from .javhub import JavhubIE
+from .showuptv import ShowUpTVIE
 from .jeuxvideo import JeuxVideoIE
 from .jove import JoveIE
 from .joj import JojIE
