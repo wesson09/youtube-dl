@@ -2384,6 +2384,16 @@ class GeoRestrictedError(ExtractorError):
         self.msg = msg
         self.countries = countries
 
+class DRMError(ExtractorError):
+    """DRM  Error exception.
+
+    This exception may be thrown when a video is not available from your
+    geographic location due to geographic restrictions imposed by a website.
+    """
+    def __init__(self, msg ):
+        super(DRMError, self).__init__(msg, expected=True)
+        self.msg = msg
+
 
 class DownloadError(YoutubeDLError):
     """Download Error exception.
