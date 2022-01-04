@@ -2468,7 +2468,7 @@ class GenericIE(InfoExtractor):
         # Be careful not to download the whole thing!
         if  (not is_html(first_bytes)) and (not is_json(first_bytes)):
             if len(first_bytes) < 128:  # HTML should be att least 120 bytes
-                return [];
+                return;
             self._downloader.report_warning(
                 'URL could be a direct video link, returning it as such.')
             info_dict.update({
