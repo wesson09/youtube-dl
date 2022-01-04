@@ -5,7 +5,10 @@ import re
 import subprocess
 import sys
 import time
+import websocket
+from threading import Thread
 
+from docs.conf import templates_path
 from .common import FileDownloader
 from ..compat import (
     compat_setenv,
@@ -209,6 +212,187 @@ class HttpieFD(ExternalFD):
         for key, val in info_dict['http_headers'].items():
             cmd += ['%s:%s' % (key, val)]
         return cmd
+
+
+class WebSocketAppDownloader(websocket.WebSocketApp):
+    outputfile=None
+    def setOutputFile(self,output):
+        outputfile=output;
+
+class WebSocketFD(ExternalFD):
+    @classmethod
+    def supports(cls, info_dict):
+        return info_dict['protocol'] in ('http', 'https', 'ftp', 'ftps', 'm3u8', 'rtsp', 'rtmp', 'mms', 'wss')
+
+    @classmethod
+    def available(cls):
+        return FFmpegPostProcessor().available
+
+    def _call_downloader(self, tmpfilename, info_dict):
+        wsurl = info_dict['url']
+
+        protocol = info_dict.get('protocol');# useless as protocol wan be anything
+
+        auxprotocols = info_dict.get('auxprotocols')# other wss protocols contiaining (url and callbacks)
+
+        wsauxapps=[];
+        if auxprotocols:
+            for auxproto in auxprotocols:
+                wsapp = websocket.WebSocketApp(wsurl,
+                                               header=auxproto.headers,
+                                               on_open=auxproto.on_open,
+                                               on_message=auxproto.on_message,
+                                               on_error=auxproto.on_error,
+                                               on_close=auxproto.on_close)
+                wsauxapps.append(wsapp);
+
+        for wsapp in wsauxapps:
+            def arun(*args):
+                wsapp.run_forever()
+
+            Thread(target=arun).start()
+
+        args=[]
+        for log_level in ('quiet', 'verbose'):
+            if self.params.get(log_level, False):
+                args += ['-loglevel', log_level]
+                break
+
+        seekable = info_dict.get('_seekable')
+        if seekable is not None:
+            # setting -seekable prevents ffmpeg from guessing if the server
+            # supports seeking(by adding the header `Range: bytes=0-`), which
+            # can cause problems in some cases
+            # https://github.com/ytdl-org/youtube-dl/issues/11800#issuecomment-275037127
+            # http://trac.ffmpeg.org/ticket/6125#comment:10
+            args += ['-seekable', '1' if seekable else '0']
+
+        args += self._configuration_args()
+
+        # start_time = info_dict.get('start_time') or 0
+        # if start_time:
+        #     args += ['-ss', compat_str(start_time)]
+        # end_time = info_dict.get('end_time')
+        # if end_time:
+        #     args += ['-t', compat_str(end_time - start_time)]
+
+        if info_dict['http_headers'] and re.match(r'^https?://', wsurl):
+            # Trailing \r\n after each HTTP header is important to prevent warning from ffmpeg/avconv:
+            # [http @ 00000000003d2fa0] No trailing CRLF found in HTTP header.
+            headers = handle_youtubedl_headers(info_dict['http_headers'])
+            args += [
+                '-headers',
+                ''.join('%s: %s\r\n' % (key, val) for key, val in headers.items())]
+
+        env = None
+        proxy = self.params.get('proxy')
+        if proxy:
+            if not re.match(r'^[\da-zA-Z]+://', proxy):
+                proxy = 'http://%s' % proxy
+
+            if proxy.startswith('socks'):
+                self.report_warning(
+                    '%s does not support SOCKS proxies. Downloading is likely to fail. '
+                    'Consider adding --hls-prefer-native to your command.' % self.get_basename())
+
+            # Since December 2015 ffmpeg supports -http_proxy option (see
+            # http://git.videolan.org/?p=ffmpeg.git;a=commit;h=b4eb1f29ebddd60c41a2eb39f5af701e38e0d3fd)
+            # We could switch to the following code if we are able to detect version properly
+            # args += ['-http_proxy', proxy]
+            env = os.environ.copy()
+            compat_setenv('HTTP_PROXY', proxy, env=env)
+            compat_setenv('http_proxy', proxy, env=env)
+
+        protocol = info_dict.get('protocol')
+
+        if protocol == 'rtmp':
+            player_url = info_dict.get('player_url')
+            page_url = info_dict.get('page_url')
+            app = info_dict.get('app')
+            play_path = info_dict.get('play_path')
+            tc_url = info_dict.get('tc_url')
+            flash_version = info_dict.get('flash_version')
+            live = info_dict.get('rtmp_live', False)
+            conn = info_dict.get('rtmp_conn')
+            if player_url is not None:
+                args += ['-rtmp_swfverify', player_url]
+            if page_url is not None:
+                args += ['-rtmp_pageurl', page_url]
+            if app is not None:
+                args += ['-rtmp_app', app]
+            if play_path is not None:
+                args += ['-rtmp_playpath', play_path]
+            if tc_url is not None:
+                args += ['-rtmp_tcurl', tc_url]
+            if flash_version is not None:
+                args += ['-rtmp_flashver', flash_version]
+            if live:
+                args += ['-rtmp_live', 'live']
+            if isinstance(conn, list):
+                for entry in conn:
+                    args += ['-rtmp_conn', entry]
+            elif isinstance(conn, compat_str):
+                args += ['-rtmp_conn', conn]
+
+        args += ['-i', wsurl, '-c', 'copy']
+
+        if self.params.get('test', False):
+            args += ['-fs', compat_str(self._TEST_FILE_SIZE)]
+
+        # if protocol in ('m3u8', 'm3u8_native'):
+        #     if self.params.get('hls_use_mpegts', False) or tmpfilename == '-':
+        #         args += ['-f', 'mpegts']
+        #     else:
+        #         args += ['-f', 'mp4']
+        #         if (ffpp.basename == 'ffmpeg' and is_outdated_version(ffpp._versions['ffmpeg'], '3.2', False)) and (not info_dict.get('acodec') or info_dict['acodec'].split('.')[0] in ('aac', 'mp4a')):
+        #             args += ['-bsf:a', 'aac_adtstoasc']
+        # elif protocol == 'rtmp':
+        #     args += ['-f', 'flv']
+        # else:
+        #     args += ['-f', EXT_TO_OUT_FORMATS.get(info_dict['ext'], info_dict['ext'])]
+        #
+        # args = [encodeArgument(opt) for opt in args]
+        # args.append(encodeFilename(ffpp._ffmpeg_filename_argument(tmpfilename), True))
+
+        self._debug_cmd(args)
+        #websocket.enableTrace(True)
+
+        wsappmain = WebSocketAppDownloader(wsurl,header=
+                                       ["User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:94.0) Gecko/20100101 Firefox/94.0",
+                    "Accept: */*",
+                    "Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
+                    "Accept-Encoding: gzip, deflate, br",
+                    #"Sec-WebSocket-Version: 13",
+                    "Origin: https://www.livejasmin.com",
+                    #"Sec-WebSocket-Extensions: permessage-deflate",
+                    #"Sec-WebSocket-Key: gsVFAaMTdf8HW8pI/f9FhA==",
+                    "Connection: keep-alive, Upgrade",
+                    "Sec-Fetch-Dest: websocket",
+                    "Sec-Fetch-Mode: websocket",
+                    "Sec-Fetch-Site: cross-site",
+                    "Pragma: no-cache",
+                    "Cache-Control: no-cache",
+                    "Upgrade: websocket"],
+                                       on_message=info_dict['on_message'],
+                                       on_error=info_dict['on_error'] ,
+                                       on_close=info_dict['on_close'] )
+        wsappmain.outputfile = open(tmpfilename, 'wb')
+        #wsappmain.on_open =info_dict['on_open']
+
+        # def darun(*args):
+        # Thread(target=darun).start()
+
+        try:
+          wsappmain.run_forever()
+        except  :
+            # subprocces.run would send the SIGKILL signal to ffmpeg and the
+            # mp4 file couldn't be played, but if we ask ffmpeg to quit it
+            # produces a file that is playable (this is mostly useful for live
+            # streams). Note that Windows is not affected and produces playable
+            # files (see https://github.com/ytdl-org/youtube-dl/issues/8300).
+            self.to_stderr('wsappmain closed')
+            #raise
+        return True
 
 
 class FFmpegFD(ExternalFD):

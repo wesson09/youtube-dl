@@ -10,7 +10,7 @@ from .rtsp import RtspFD
 from .ism import IsmFD
 from .external import (
     get_external_downloader,
-    FFmpegFD,
+    FFmpegFD,WebSocketFD,
 )
 
 from ..utils import (
@@ -26,6 +26,7 @@ PROTOCOL_MAP = {
     'f4m': F4mFD,
     'http_dash_segments': DashSegmentsFD,
     'ism': IsmFD,
+    'wss': WebSocketFD,
 }
 
 
