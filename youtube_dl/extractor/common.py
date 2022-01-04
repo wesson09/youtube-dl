@@ -52,6 +52,7 @@ from ..utils import (
     fix_xml_ampersands,
     float_or_none,
     GeoRestrictedError,
+    DRMError,
     GeoUtils,
     int_or_none,
     js_to_json,
@@ -945,6 +946,10 @@ class InfoExtractor(object):
     @staticmethod
     def raise_geo_restricted(msg='This video is not available from your location due to geo restriction', countries=None):
         raise GeoRestrictedError(msg, countries=countries)
+
+    @staticmethod
+    def raise_drm_restricted(msg='This video have DRM'):
+        raise DRMError(msg)
 
     # Methods for following #608
     @staticmethod
@@ -2224,11 +2229,11 @@ class InfoExtractor(object):
             })
             for adaptation_set in period.findall(_add_ns('AdaptationSet')):
                 if is_drm_protected(adaptation_set):
-                    continue
+                    self.raise_drm_restricted() #continue
                 adaption_set_ms_info = extract_multisegment_info(adaptation_set, period_ms_info)
                 for representation in adaptation_set.findall(_add_ns('Representation')):
                     if is_drm_protected(representation):
-                        continue
+                        self.raise_drm_restricted() #continue
                     representation_attrib = adaptation_set.attrib.copy()
                     representation_attrib.update(representation.attrib)
                     # According to [1, 5.3.7.2, Table 9, page 41], @mimeType is mandatory
