@@ -512,6 +512,8 @@ class FacebookIE(InfoExtractor):
                         parse_attachment(attachment)
                     if not entries:
                         parse_graphql_video(video)
+                #if len(entries)==1 :#and  self._downloader.params.get('noplaylist'):
+                return entries[0];#self.url_result(entries[0].url, ie=FacebookIE.ie_key(), video_id=video_id)
 
                 return self.playlist_result(entries, video_id)
 
