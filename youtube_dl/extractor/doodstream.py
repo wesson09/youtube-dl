@@ -32,7 +32,7 @@ class DoodStreamIE(InfoExtractor):
     def _real_extract(self, url):
         video_id = self._match_id(url)
         host = re.match(self._VALID_URL, url).groups()[0]
-        print('https://%s/' % host)
+        #print('https://%s/' % host)
         webpage = self._download_webpage(url, video_id)
 
         if '/d/' in url:
