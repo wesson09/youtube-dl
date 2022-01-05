@@ -218,15 +218,31 @@ class WebSocketAppDownloader(websocket.WebSocketApp):
     outputfile=None
     def setOutputFile(self,output):
         outputfile=output;
+        
+def on_error_downloader(wsr, error):
+    print(error)
 
+def on_close_downloader(wsr,close_status_code, close_reason):
+    print( close_reason)
+    print( close_status_code)
+    print("### closed ###")
+
+def on_message_downloader(wsr, message):
+    try:
+        foki = bytes(message, 'utf-8');
+        if not message.startswith('{"eventType'):
+            wsr.outputfile.write(message);
+    except:
+        wsr.outputfile.write(message);
 class WebSocketFD(ExternalFD):
     @classmethod
     def supports(cls, info_dict):
-        return info_dict['protocol'] in ('http', 'https', 'ftp', 'ftps', 'm3u8', 'rtsp', 'rtmp', 'mms', 'wss')
+        return info_dict['protocol'] in ('wss')
 
     @classmethod
     def available(cls):
         return FFmpegPostProcessor().available
+
 
     def _call_downloader(self, tmpfilename, info_dict):
         wsurl = info_dict['url']
@@ -363,7 +379,7 @@ class WebSocketFD(ExternalFD):
                     "Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
                     "Accept-Encoding: gzip, deflate, br",
                     #"Sec-WebSocket-Version: 13",
-                    "Origin: https://www.livejasmin.com",
+                    #"Origin: https://www.livejasmin.com",
                     #"Sec-WebSocket-Extensions: permessage-deflate",
                     #"Sec-WebSocket-Key: gsVFAaMTdf8HW8pI/f9FhA==",
                     "Connection: keep-alive, Upgrade",
@@ -372,11 +388,22 @@ class WebSocketFD(ExternalFD):
                     "Sec-Fetch-Site: cross-site",
                     "Pragma: no-cache",
                     "Cache-Control: no-cache",
-                    "Upgrade: websocket"],
-                                       on_message=info_dict['on_message'],
-                                       on_error=info_dict['on_error'] ,
-                                       on_close=info_dict['on_close'] )
+                    "Upgrade: websocket"])
         wsappmain.outputfile = open(tmpfilename, 'wb')
+        if  info_dict.get('on_open'):
+            wsappmain.on_open=info_dict['on_open'];
+        if  info_dict.get('on_error'):
+            wsappmain.on_error=info_dict['on_error'];
+        else:
+            wsappmain.on_error=on_error_downloader;
+        if  info_dict.get('on_close'):
+            wsappmain.on_close=info_dict['on_close'];
+        else:
+            wsappmain.on_close=on_close_downloader;
+        if  info_dict.get('on_message'):
+            wsappmain.on_message=info_dict['on_message'];
+        else:
+            wsappmain.on_message=on_message_downloader;
         #wsappmain.on_open =info_dict['on_open']
 
         # def darun(*args):

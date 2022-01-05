@@ -2384,6 +2384,22 @@ class GenericIE(InfoExtractor):
         else:
             video_id = self._generic_id(url)
 
+        #check websocket here
+        if url.startswith('wss://'):
+            f = {}
+            f = {
+                'url': url, 'ext': 'mp4',
+                'protocol': 'wss',
+            }
+            formats = [];
+            formats.append(f);
+            return {
+                'id': video_id,
+                'ext': 'mp4',
+                'title': self._generic_title(url),
+                'formats': formats,
+                'is_live': True,
+            }
         self.to_screen('%s: Requesting header' % video_id)
 
         head_req = HEADRequest(url)
