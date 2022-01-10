@@ -10,7 +10,7 @@ from .rtsp import RtspFD
 from .ism import IsmFD
 from .external import (
     get_external_downloader,
-    FFmpegFD,WebSocketFD,
+    FFmpegFD,WebSocketFD
 )
 
 from ..utils import (
@@ -28,7 +28,6 @@ PROTOCOL_MAP = {
     'ism': IsmFD,
     'wss': WebSocketFD,
 }
-
 
 def get_suitable_downloader(info_dict, params={}):
     """Get the downloader class that can handle the info dict."""

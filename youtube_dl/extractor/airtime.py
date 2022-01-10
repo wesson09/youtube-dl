@@ -5,7 +5,8 @@ import re
 
 from .common import InfoExtractor
 from ..utils import unsmuggle_url
-
+import requests
+import json
 
 class GenericAirtimeIE(InfoExtractor):
     _WORKING = False
@@ -22,23 +23,74 @@ class GenericAirtimeIE(InfoExtractor):
 
     @staticmethod
     def _extract_url(webpage):
+        # locate jplayer script
+        f = re.findall(r'<script .*src=.*airtime.*.js', webpage);
+        if len(f) == 0:
+            # no jplayer script found
+            return None;
+
+        f = re.findall(
+            r'availableDesktopStreamQueue[\s|.]*=[\s|.]*\[{"url":"(?P<URL>[^"]*)","codec":"(?P<CODEC>[^"]*)","bitrate":(?P<bitrate>[^,]*)',
+            webpage);
+
+        if len(f) == 0:
+            # no jplayer script found
+            return None;
+        return  f[0][0].replace('\\', '');
         urls = GenericAirtimeIE._extract_urls(webpage)
         return urls[0] if urls else None
 
     @staticmethod
-    def _extract_urls(webpage):
+    def _extract_urls(webpage,webpageurl):
         #locate jplayer script
         f=re.findall(r'<script .*src=.*airtime.*.js',webpage);
         if len(f)==0:
           #no jplayer script found
-          return;
+          return None;
 
         f=re.findall(r'availableDesktopStreamQueue[\s|.]*=[\s|.]*\[{"url":"(?P<URL>[^"]*)","codec":"(?P<CODEC>[^"]*)","bitrate":(?P<bitrate>[^,]*)',webpage);
 
         if len(f) == 0:
             # no jplayer script found
-            return;
-        return [f[0][0].replace('\\','')];
+            return None;
+        url= f[0][0].replace('\\','');
+
+
+
+        #   get /api/live-info to retrieve current title...or not....
+
+        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
+        m = URL_RE.match(webpageurl)
+
+        dom=m.group('domain')
+        res=requests.get(dom+'/api/live-info');
+        title=''
+        try:
+           resjs=json.loads(res.content);
+           title=resjs['current']['name']
+        except:
+           title = 'LibreTime Radio'
+
+        formats = [];
+
+        formats.append({
+
+            'url': url,
+             'acodec':  f[0][1],
+            'ext': 'mp3',
+            'is_live': True,  # most are radios
+        })
+        # if len(f[0][0])==0:
+        #     video_id=url
+        # else:
+        #     video_id=f[0][0];
+
+        return {
+            'id': url,
+            'title': title,
+            'formats': formats,
+            'url':webpageurl,
+        }
 
     def _real_extract(self, url):
         # webpage=self._download_webpage(url,url);

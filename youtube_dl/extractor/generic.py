@@ -2303,6 +2303,88 @@ class GenericIE(InfoExtractor):
             'entries': entries,
         }
 
+    def _extract_jplayer(self, url, video_id, webpage):
+        """ Returns None if no jplayer video can be found. """
+        # return GenericJPlayerIE._extract_urls(webpage,url)
+        # locate jplayer script
+        f = re.findall(r'<script .*src=.*jplayer.*.js', webpage);
+        if len(f) == 0:  # no jplayer script found
+            return None;
+
+        f = re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*', webpage);
+        if len(f) == 0:  # no jplayer script found
+            return None;
+
+        # get /player/rtdata/tracks.json to retrieve current title...or not....
+
+        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
+        m = URL_RE.match(url)
+        dom = m.group('domain')
+        resjs = self._download_json(dom + '/player/rtdata/tracks.json', f[0][1], fatal=False, note=None);
+        title = ''
+        try:
+            title = resjs[0]['artist'] + '-' + resjs[0]['titre']
+        except:
+            title = f[0][0]
+
+        formats = [];
+
+        formats.append({
+            'url': f[0][1],
+            'vcodec': 'none',
+            'ext': 'mp3',
+            'is_live': True,  # most are radios
+        })
+
+        self._downloader.params['onlinemetadata']=2; #interval between metadata request
+        self._downloader.params['urlmetadata']=f[0][1];
+        return {
+            'id': f[0][0],
+            'title': title,
+            'formats': formats,
+            'url': url,
+        }
+
+    def _extract_airtime(self, url, video_id, webpage):
+        """ Returns None if no jplayer video can be found. """
+        # locate jplayer script
+        f = re.findall(r'<script .*src=.*airtime.*.js', webpage);
+        if len(f) == 0: # no jplayer script found
+            return None;
+        f = re.findall(r'availableDesktopStreamQueue[\s|.]*=[\s|.]*\[{"url":"(?P<URL>[^"]*)","codec":"(?P<CODEC>[^"]*)","bitrate":(?P<bitrate>[^,]*)', webpage);
+        if len(f) == 0: # no jplayer script found
+            return None;
+        contenturl = f[0][0].replace('\\', '');
+
+        #   get /api/live-info to retrieve current title...or not....
+
+        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
+        m = URL_RE.match(url)
+
+        dom = m.group('domain')
+        resjs = self._download_json(dom + '/api/live-info', f[0][1], fatal=False, note=None);
+        title = ''
+        try:
+            title = resjs['current']['name']
+        except:
+            title = 'LibreTime Radio'
+
+        formats = [];
+        formats.append({
+            'url': contenturl,
+            'acodec': f[0][1],
+            'ext': 'mp3',
+            'is_live': True,  # most are radios
+        })
+        self._downloader.params['onlinemetadata']=2; #interval between metadata request
+        self._downloader.params['urlmetadata']=contenturl;
+        return {
+            'id': url,
+            'title': title,
+            'formats': formats,
+            'url': url,
+        }
+
     def _extract_camtasia(self, url, video_id, webpage):
         """ Returns None if no camtasia video can be found. """
 
@@ -2444,11 +2526,25 @@ class GenericIE(InfoExtractor):
             elif format_id == 'f4m':
                 formats = self._extract_f4m_formats(url, video_id)
             else:
+                for headname in head_response.headers:
+                    if headname.lower().startswith('icy'):
+                        livedetected=True
+                        self._downloader.params['onlinemetadata'] = 2;  # interval between metadata request
+                        self._downloader.params['urlmetadata'] = url;
+                #try to set an extension before it goes with filename
+                tryext='';
+                if content_type.startswith('audio'):
+                    tryext = format_id;
+                    if format_id=='mpeg':
+                      tryext='mp3'
+
                 formats = [{
                     'format_id': format_id,
                     'url': url,
                     'vcodec': 'none' if m.group('type') == 'audio' else None
                 }]
+                if tryext!='':
+                    formats[0]['ext']=tryext
                 info_dict['direct'] = True
             self._sort_formats(formats)
             info_dict['formats'] = formats
@@ -3095,16 +3191,14 @@ class GenericIE(InfoExtractor):
             return self.playlist_from_matches(jwplatform_urls, video_id, video_title, ie=JWPlatformIE.ie_key())
 
         # Look for JPlayer embeds (assumed live)
-        jplayer_urls = GenericJPlayerIE._extract_url(webpage)
-        if jplayer_urls:
-            return self.url_result(self._proto_relative_url(jplayer_urls), GenericJPlayerIE.ie_key())
-            #return self.playlist_from_matches(jplayer_urls, video_id, video_title, ie=GenericJPlayerIE.ie_key())
+        jplayer_res = self._extract_jplayer(url, url, webpage);
+        if jplayer_res:
+            return jplayer_res
 
         # Look for Airtime/Libretime embeds (assumed live)
-        airtime_urls = GenericAirtimeIE._extract_url(webpage)
-        if airtime_urls:
-            return self.url_result(self._proto_relative_url(airtime_urls), GenericAirtimeIE.ie_key())
-            #return self.playlist_from_matches(airtime_urls, video_id, video_title, ie=GenericAirtimeIE.ie_key())
+        airtime_res = self._extract_airtime(url, url, webpage);
+        if airtime_res:
+            return airtime_res
 
         # Look for Digiteka embeds
         digiteka_url = DigitekaIE._extract_url(webpage)

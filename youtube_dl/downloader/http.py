@@ -11,6 +11,7 @@ from .common import FileDownloader
 from ..compat import (
     compat_str,
     compat_urllib_error,
+    compat_urllib_request,
 )
 from ..utils import (
     ContentTooShortError,
@@ -22,7 +23,6 @@ from ..utils import (
     XAttrMetadataError,
     XAttrUnavailableError,
 )
-
 
 class HttpFD(FileDownloader):
     def real_download(self, filename, info_dict):
@@ -252,6 +252,49 @@ class HttpFD(FileDownloader):
                 # exit loop when download is finished
                 if len(data_block) == 0:
                     break
+
+                # TOHACKY check silence and/or detect meta data for stream cutting
+                if self.params.get('onlinemetadata') :
+
+                    now = time.time()
+                    #if(byte_counter==0 or byte_counter>self.params.get('onlinemetadata')):
+                    if  byte_counter-len(data_block)==0 or now-start>self.params.get('onlinemetadata'):
+                        start=now
+                        if byte_counter-len(data_block)==0: #hacky
+                            guess =  ctx.filename.partition('?')[0].rpartition('.')[2]
+                            ctx.folder=ctx.filename[:len(ctx.filename)-len(guess)-1];
+                            dn =  os.getcwd()
+                            dn = dn+ os.path.sep + ctx.folder
+                            if dn and not os.path.exists(dn):
+                                os.makedirs(dn)
+
+
+                        request=compat_urllib_request.Request(self.params.get('urlmetadata'))
+                        request.add_header('Icy-MetaData', 1)
+                        response = compat_urllib_request.urlopen(request)
+                        try:
+                            icy_metaint_header = response.headers.get('icy-metaint')
+                            if icy_metaint_header is not None:
+                                metaint = int(icy_metaint_header)+1
+                                read_buffer = metaint + 255
+                                content = response.read(read_buffer)
+
+                                title = content[metaint:]
+                                title = title.split(b'=')[1] #assume first key is StreamTitle
+                                title = title.split(b'\'')[1].decode("utf-8")
+                                title=title.replace('\#','')
+                                title=title.replace('/','')
+                                #print (title)
+                                if ctx.tmpfilename!=ctx.folder+'/'+title+'.mp3.part':
+                                    ctx.tmpfilename = ctx.folder+'/'+title+'.mp3.part'
+                                    ctx.filename = ctx.folder+'/'+title+'.mp3'
+                                    ctx.stream.close();
+                                    ctx.stream = None;
+                            else:
+                                response.close
+                        except:
+                            response.close
+                            print('Error')
 
                 # Open destination file just in time
                 if ctx.stream is None:

@@ -4,8 +4,12 @@ from __future__ import unicode_literals
 import re
 
 from .common import InfoExtractor
-from ..utils import unsmuggle_url
+#from ..downloader.http import HttpFD
 
+from .. import downloader
+from ..utils import unsmuggle_url
+import requests
+import json
 
 class GenericJPlayerIE(InfoExtractor):
     _WORKING = False
@@ -22,49 +26,81 @@ class GenericJPlayerIE(InfoExtractor):
 
     @staticmethod
     def _extract_url(webpage):
+        #locate jplayer script
+        # f=re.findall(r'<script .*src=.*jplayer.*.js',webpage);
+        # if len(f)==0:
+        #   #no jplayer script found
+        #   return;
+        #
+        # f=re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*',webpage);
+        # # {
+        # #     title: "ABC Jazz",
+        # #     mp3: "http://listen.radionomy.com/abc-jazz"
+        # # }
+        # if len(f) == 0:
+        #     # no jplayer script found
+        #     return;
+        # return re.findall(r'{[\s|.]*title:\s*"[^"]*",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*',webpage);
+
         urls = GenericJPlayerIE._extract_urls(webpage)
         return urls[0] if urls else None
 
     @staticmethod
-    def _extract_urls(webpage):
+    def _extract_urls(webpage,webpageurl):
         #locate jplayer script
-        f=re.findall(r'<script .*src=.*jplayer.*.js',webpage);
-        if len(f)==0:
-          #no jplayer script found
-          return;
+        f = re.findall(r'<script .*src=.*jplayer.*.js', webpage);
+        if len(f) == 0:
+            # no jplayer script found
+            return None;
 
-        f=re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*',webpage);
+        f = re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*', webpage);
         # {
         #     title: "ABC Jazz",
         #     mp3: "http://listen.radionomy.com/abc-jazz"
         # }
         if len(f) == 0:
             # no jplayer script found
-            return;
-        return re.findall(r'{[\s|.]*title:\s*"[^"]*",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*',webpage);
+            return None;
 
-    def _real_extract(self, url):
-        # webpage=self._download_webpage(url,url);
-        #
-        # f=re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*',webpage);
+            #   get /player/rtdata/tracks.json to retrieve current title...or not....
 
-        formats=[];
+        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
+        m = URL_RE.match(webpageurl)
+
+        dom = m.group('domain')
+
+        ie =GenericJPlayerIE()
+        ie.set_downloader(HttpFD())
+        resjs=ie._download_json(dom + '/player/rtdata/tracks.json',f[0][1],fatal=False,note=None);
+        title = ''
+        try:
+            #resjs = json.loads(res.content);
+            title = resjs[0]['artist']+'-'+resjs[0]['titre']
+        except:
+            title = f[0][0]
+
+        formats = [];
 
         formats.append({
-            'url': url,
+            'url': f[0][1],
             'vcodec': 'none',
             'ext': 'mp3',
-            'is_live': True,#most are radios
+            'is_live': True,  # most are radios
         })
         # if len(f[0][0])==0:
         #     video_id=url
         # else:
         #     video_id=f[0][0];
 
-        self._sort_formats(formats)
+        #_sort_formats(formats)
 
         return {
-            'id':url,
-            'title': url,
+            'id': f[0][0],
+            'title': title,
             'formats': formats,
+            'url':webpageurl,
         }
+
+
+#def _real_extract(self, webpage):
+
