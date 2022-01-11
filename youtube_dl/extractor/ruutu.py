@@ -19,7 +19,7 @@ class RuutuIE(InfoExtractor):
     _VALID_URL = r'''(?x)
                     https?://
                         (?:
-                            (?:www\.)?(?:ruutu|supla)\.fi/(?:video|supla|audio)/|
+                            (?:www\.)?(?:ruutu|supla)\.fi/(?:video|supla|audio|movie)/|
                             static\.nelonenmedia\.fi/player/misc/embed_player\.html\?.*?\bnid=
                         )
                         (?P<id>\d+)
