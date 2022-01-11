@@ -165,21 +165,24 @@ class ShowUpTVIE(InfoExtractor):
 
         wssurl=r'wss://'+r[0][0]+'/h5live/stream/?url=rtmp%3A%2F%2F'+r[0][6]+'%3A1935%2Fwebrtc&stream='+r[0][5]+'_aac&cid=549236&pid=85171025744'
 
-        f={}
-        if self._downloader.params.get('dump_single_json') :
-            f = {
-                'url': wssurl,'ext': 'mp4',
-                'protocol': 'wss',
-            }
-        else:
-            f={
-                'url':wssurl,'ext': 'mp4',
-                'protocol':'wss',
-                'on_open':on_open_stream,
-                'on_error':on_error_stream,
-                'on_close':on_close_stream,
-                'on_message':on_message_stream,
-            }
+        f = {
+            'url': wssurl, 'ext': 'mp4',
+            'protocol': 'wss',
+        }
+        # if self._downloader.params.get('dump_single_json') :
+        #     f = {
+        #         'url': wssurl,'ext': 'mp4',
+        #         'protocol': 'wss',
+        #     }
+        # else:
+        #     f={
+        #         'url':wssurl,'ext': 'mp4',
+        #         'protocol':'wss',
+        #         'on_open':on_open_stream,
+        #         'on_error':on_error_stream,
+        #         'on_close':on_close_stream,
+        #         'on_message':on_message_stream,
+        #     }
         formats=[];
         formats.append(f);
         return {

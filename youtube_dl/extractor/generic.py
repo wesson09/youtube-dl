@@ -2541,7 +2541,8 @@ class GenericIE(InfoExtractor):
                 formats = [{
                     'format_id': format_id,
                     'url': url,
-                    'vcodec': 'none' if m.group('type') == 'audio' else None
+                    'vcodec': 'none' if m.group('type') == 'audio' else None,
+                    'format_note': 'folder_mode' if self._downloader.params.get('onlinemetadata') else '',
                 }]
                 if tryext!='':
                     formats[0]['ext']=tryext
@@ -3191,14 +3192,14 @@ class GenericIE(InfoExtractor):
             return self.playlist_from_matches(jwplatform_urls, video_id, video_title, ie=JWPlatformIE.ie_key())
 
         # Look for JPlayer embeds (assumed live)
-        jplayer_res = self._extract_jplayer(url, url, webpage);
-        if jplayer_res:
-            return jplayer_res
-
-        # Look for Airtime/Libretime embeds (assumed live)
-        airtime_res = self._extract_airtime(url, url, webpage);
-        if airtime_res:
-            return airtime_res
+        # jplayer_res = self._extract_jplayer(url, url, webpage);
+        # if jplayer_res:
+        #     return jplayer_res
+        #
+        # # Look for Airtime/Libretime embeds (assumed live)
+        # airtime_res = self._extract_airtime(url, url, webpage);
+        # if airtime_res:
+        #     return airtime_res
 
         # Look for Digiteka embeds
         digiteka_url = DigitekaIE._extract_url(webpage)

@@ -246,27 +246,23 @@ class HttpFD(FileDownloader):
                     if e.errno in (errno.ECONNRESET, errno.ETIMEDOUT) or getattr(e, 'message', None) == 'The read operation timed out':
                         retry(e)
                     raise
-
+                firsttime=byte_counter==0
                 byte_counter += len(data_block)
 
                 # exit loop when download is finished
                 if len(data_block) == 0:
                     break
-
+                #
                 # TOHACKY check silence and/or detect meta data for stream cutting
                 if self.params.get('onlinemetadata') :
 
                     now = time.time()
                     #if(byte_counter==0 or byte_counter>self.params.get('onlinemetadata')):
-                    if  byte_counter-len(data_block)==0 or now-start>self.params.get('onlinemetadata'):
+                    if  firsttime or now-start>self.params.get('onlinemetadata'):
                         start=now
-                        if byte_counter-len(data_block)==0: #hacky
+                        if firsttime: #hacky
                             guess =  ctx.filename.partition('?')[0].rpartition('.')[2]
                             ctx.folder=ctx.filename[:len(ctx.filename)-len(guess)-1];
-                            dn =  os.getcwd()
-                            dn = dn+ os.path.sep + ctx.folder
-                            if dn and not os.path.exists(dn):
-                                os.makedirs(dn)
 
 
                         request=compat_urllib_request.Request(self.params.get('urlmetadata'))
@@ -280,12 +276,16 @@ class HttpFD(FileDownloader):
                                 content = response.read(read_buffer)
 
                                 title = content[metaint:]
-                                title = title.split(b'=')[1] #assume first key is StreamTitle
+                                title = title.split(b';')[0].split(b'=')[1] #assume first key is StreamTitle
                                 title = title.split(b'\'')[1].decode("utf-8")
                                 title=title.replace('\#','')
-                                title=title.replace('/','')
+                                title=title.replace('/','');
                                 #print (title)
-                                if ctx.tmpfilename!=ctx.folder+'/'+title+'.mp3.part':
+                                if title!='' and ctx.tmpfilename!=ctx.folder+'/'+title+'.mp3.part':
+                                    dn = os.getcwd()
+                                    dn = dn + os.path.sep + ctx.folder
+                                    if dn and not os.path.exists(dn):
+                                        os.makedirs(dn)
                                     ctx.tmpfilename = ctx.folder+'/'+title+'.mp3.part'
                                     ctx.filename = ctx.folder+'/'+title+'.mp3'
                                     ctx.stream.close();
@@ -294,7 +294,7 @@ class HttpFD(FileDownloader):
                                 response.close
                         except:
                             response.close
-                            print('Error')
+                #             print('Error')
 
                 # Open destination file just in time
                 if ctx.stream is None:

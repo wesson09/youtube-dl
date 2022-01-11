@@ -225,15 +225,20 @@ def on_error_downloader(wsr, error):
 def on_close_downloader(wsr,close_status_code, close_reason):
     print( close_reason)
     print( close_status_code)
+    wsr.outputfile.close();
     print("### closed ###")
 
 def on_message_downloader(wsr, message):
-    try:
-        foki = bytes(message, 'utf-8');
-        if not message.startswith('{"eventType'):
-            wsr.outputfile.write(message);
-    except:
+    if not (message[0]=='{' and message[len(message)-1]=='}') :
         wsr.outputfile.write(message);
+
+
+    #
+    # try:
+    #     foki = bytes(message, 'utf-8');
+    #     #message.startswith('{"eventType')
+    # except:
+
 class WebSocketFD(ExternalFD):
     @classmethod
     def supports(cls, info_dict):

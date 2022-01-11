@@ -401,7 +401,7 @@ class TwitterIE(TwitterBaseIE):
         'only_matching': True,
     }, {
         # promo_video_website card
-        'url': 'https://twitter.com/GunB1g/status/1163218564784017422',
+        'url': '',
         'only_matching': True,
     }, {
         # promo_video_convo card
@@ -582,7 +582,7 @@ class TwitterAmplifyIE(TwitterBaseIE):
     _VALID_URL = r'https?://amp\.twimg\.com/v/(?P<id>[0-9a-f\-]{36})'
 
     _TEST = {
-        'url': 'https://amp.twimg.com/v/0ba0c3c7-0af3-4c0a-bed5-7efd1ffa2951',
+        'url': 'https://twitter.com/i/web/status/0ba0c3c7-0af3-4c0a-bed5-7efd1ffa2951',
         'md5': '7df102d0b9fd7066b86f3159f8e81bf6',
         'info_dict': {
             'id': '0ba0c3c7-0af3-4c0a-bed5-7efd1ffa2951',
