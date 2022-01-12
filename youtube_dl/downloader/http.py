@@ -264,10 +264,11 @@ class HttpFD(FileDownloader):
                             guess =  ctx.filename.partition('?')[0].rpartition('.')[2]
                             ctx.folder=ctx.filename[:len(ctx.filename)-len(guess)-1];
 
-
                         request=compat_urllib_request.Request(self.params.get('urlmetadata'))
                         request.add_header('Icy-MetaData', 1)
-                        response = compat_urllib_request.urlopen(request)
+                        request.add_header('Accept-Encoding', 'gzip, deflate')
+                        response=self.ydl._opener.open(request, timeout=self.ydl._socket_timeout)
+
                         try:
                             icy_metaint_header = response.headers.get('icy-metaint')
                             if icy_metaint_header is not None:
@@ -294,6 +295,9 @@ class HttpFD(FileDownloader):
                                 response.close
                         except:
                             response.close
+                            if not firsttime:
+                                #stop metadata request on second fail
+                                del self.params['onlinemetadata']
                 #             print('Error')
 
                 # Open destination file just in time
