@@ -147,7 +147,7 @@ from .br import (
 from .bravotv import BravoTVIE
 from .breakcom import BreakIE
 from .brightcove import (
-    BrightcoveLegacyIE,
+    #BrightcoveLegacyIE,
     BrightcoveNewIE,
 )
 from .businessinsider import BusinessInsiderIE
