@@ -424,6 +424,17 @@ class InfoExtractor(object):
         return compat_str(m.group('id'))
 
     @classmethod
+    def _match_valid_url(cls, url):
+        # This does not use has/getattr intentionally - we want to know whether
+        # we have cached the regexp for *this* class, whereas getattr would also
+        # match the superclass
+        if '_VALID_URL_RE' not in cls.__dict__:
+            if '_VALID_URL' not in cls.__dict__:
+                cls._VALID_URL = cls._make_valid_url()
+            cls._VALID_URL_RE = re.compile(cls._VALID_URL)
+        return cls._VALID_URL_RE.match(url)
+
+    @classmethod
     def working(cls):
         """Getter method for _WORKING."""
         return cls._WORKING
@@ -2259,7 +2270,6 @@ class InfoExtractor(object):
                         url_el = representation.find(_add_ns('BaseURL'))
                         filesize = int_or_none(url_el.attrib.get('{http://youtube.com/yt/2012/10/10}contentLength') if url_el is not None else None)
                         bandwidth = int_or_none(representation_attrib.get('bandwidth'))
-                        urlfrag=url_el.text.split(',')
                         f = {
                             #'black_fragments':[{'path':urlfrag[0],'duration':0}],
                             'format_id': '%s-%s' % (mpd_id, representation_id) if mpd_id else representation_id,
