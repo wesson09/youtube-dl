@@ -2519,7 +2519,7 @@ class GenericIE(InfoExtractor):
         content_type = head_response.headers.get('Content-Type', '').lower()
         m = re.match(r'^(?P<type>audio|video|application(?=/(?:ogg$|(?:vnd\.apple\.|x-)?mpegurl)))/(?P<format_id>[^;\s]+)', content_type)
         if m:
-            livedetected=False
+            livedetected=full_response is not None # assume generic live servers don't allow head request (flv,icecast..)
             format_id = compat_str(m.group('format_id'))
             if format_id.endswith('mpegurl'):
                 livedetected,formats = self._extract_m3u8_live_and_formats(url, video_id, 'mp4')
@@ -2537,12 +2537,17 @@ class GenericIE(InfoExtractor):
                     tryext = format_id;
                     if format_id=='mpeg':
                       tryext='mp3'
+                format_note = '';
+                if full_response is not None:
+                    format_note='ydl_override' #indicate ffmpeg should not be used
+                if self._downloader.params.get('onlinemetadata'):
+                    format_note = 'folder_mode' #indicate the result will be folder
 
                 formats = [{
                     'format_id': format_id,
                     'url': url,
                     'vcodec': 'none' if m.group('type') == 'audio' else None,
-                    'format_note': 'folder_mode' if self._downloader.params.get('onlinemetadata') else '',
+                    'format_note': format_note,
                 }]
                 if tryext!='':
                     formats[0]['ext']=tryext
