@@ -4,19 +4,19 @@ from __future__ import unicode_literals
 import base64
 import re
 import struct
-
 from .adobepass import AdobePassIE
 from .common import InfoExtractor
 from ..compat import (
     compat_etree_fromstring,
     compat_HTTPError,
     compat_parse_qs,
-    compat_urllib_parse_urlparse,
     compat_urlparse,
     compat_xml_parse_error,
 )
 from ..utils import (
+    std_headers,
     clean_html,
+    dict_get,
     extract_attributes,
     ExtractorError,
     find_xpath_attr,
@@ -26,6 +26,7 @@ from ..utils import (
     js_to_json,
     mimetype2ext,
     parse_iso8601,
+    compat_parse_qs,
     smuggle_url,
     str_or_none,
     try_get,
@@ -142,7 +143,7 @@ class BrightcoveLegacyIE(InfoExtractor):
         {
             # playerID inferred from bcpid
             # from http://www.un.org/chinese/News/story.asp?NewsID=27724
-            'url': 'https://link.brightcove.com/services/player/bcpid1722935254001/?bctid=5360463607001&autoStart=false&secureConnections=true&width=650&height=350',
+            'url': '',
             'only_matching': True,  # Tested in GenericIE
         }
     ]
@@ -177,7 +178,7 @@ class BrightcoveLegacyIE(InfoExtractor):
             flashvars = {}
 
         data_url = object_doc.attrib.get('data', '')
-        data_url_params = compat_parse_qs(compat_urllib_parse_urlparse(data_url).query)
+        data_url_params = compat_parse_qs(data_url)
 
         def find_param(name):
             if name in flashvars:
@@ -290,7 +291,7 @@ class BrightcoveLegacyIE(InfoExtractor):
         url = re.sub(r'(?<=[?&])(videoI(d|D)|idVideo|bctid)', '%40videoPlayer', url)
         # Change bckey (used by bcove.me urls) to playerKey
         url = re.sub(r'(?<=[?&])bckey', 'playerKey', url)
-        mobj = re.match(self._VALID_URL, url)
+        mobj = self._match_valid_url(url)
         query_str = mobj.group('query')
         query = compat_urlparse.parse_qs(query_str)
 
@@ -335,21 +336,6 @@ class BrightcoveLegacyIE(InfoExtractor):
         # elif 'playerKey' in query:
         #     player_key = query['playerKey']
         #     return self._get_playlist_info(player_key[0])
-
-        #consider url is already m3u8
-        formats = self._extract_m3u8_formats(url, video_id, 'mp4')
-        if len(formats)>0:
-            self._sort_formats(formats)
-            return {
-                'id': video_id,
-                'title': 'Brightcove HLS',
-                'uploader': 'TODO',
-                'uploader_id': 'TODO',
-                'formats': formats,
-                'description': 'Brightcove HLS',
-                'is_live': False,
-            }
-
         raise UnsupportedError(url)
 
 
@@ -486,28 +472,23 @@ class BrightcoveNewIE(AdobePassIE):
     def _parse_brightcove_metadata(self, json_data, video_id, headers={}):
         title = json_data['name'].strip()
 
-        num_drm_sources = 0
-        formats = []
+        formats, subtitles = [], {}
         sources = json_data.get('sources') or []
         for source in sources:
             container = source.get('container')
             ext = mimetype2ext(source.get('type'))
             src = source.get('src')
-            # https://support.brightcove.com/playback-api-video-fields-reference#key_systems_object
-            if container == 'WVM' or source.get('key_systems'):
-                num_drm_sources += 1
-                continue
-            elif ext == 'ism':
-                continue
-            elif ext == 'm3u8' or container == 'M2TS':
+            if ext == 'm3u8' or container == 'M2TS':
                 if not src:
                     continue
-                formats.extend(self._extract_m3u8_formats(
-                    src, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False))
+                live, fmts = self._extract_m3u8_live_and_formats(
+                    src, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False)
+                #subtitles = self._merge_subtitles(subtitles, subs)
             elif ext == 'mpd':
                 if not src:
                     continue
-                formats.extend(self._extract_mpd_formats(src, video_id, 'dash', fatal=False))
+                fmts = self._extract_mpd_formats(src, video_id, 'dash', fatal=False)
+                #subtitles = self._merge_subtitles(subtitles, subs)
             else:
                 streaming_src = source.get('streaming_src')
                 stream_name, app_name = source.get('stream_name'), source.get('app_name')
@@ -553,23 +534,26 @@ class BrightcoveNewIE(AdobePassIE):
                         'play_path': stream_name,
                         'format_id': build_format_id('rtmp'),
                     })
-                formats.append(f)
+                fmts = [f]
+
+            # https://support.brightcove.com/playback-api-video-fields-reference#key_systems_object
+            if container == 'WVM' or source.get('key_systems') or ext == 'ism':
+                for f in fmts:
+                    f['has_drm'] = True
+            formats.extend(fmts)
 
         if not formats:
             errors = json_data.get('errors')
             if errors:
                 error = errors[0]
-                raise ExtractorError(
+                self.raise_no_formats(
                     error.get('message') or error.get('error_subcode') or error['error_code'], expected=True)
-            if sources and num_drm_sources == len(sources):
-                raise ExtractorError('This video is DRM protected.', expected=True)
 
         self._sort_formats(formats)
 
         for f in formats:
             f.setdefault('http_headers', {}).update(headers)
 
-        subtitles = {}
         for text_track in json_data.get('text_tracks', []):
             if text_track.get('kind') != 'captions':
                 continue
@@ -587,11 +571,19 @@ class BrightcoveNewIE(AdobePassIE):
         if duration is not None and duration <= 0:
             is_live = True
 
+        common_res = [(160, 90), (320, 180), (480, 720), (640, 360), (768, 432), (1024, 576), (1280, 720), (1366, 768), (1920, 1080)]
+        thumb_base_url = dict_get(json_data, ('poster', 'thumbnail'))
+        thumbnails = [{
+            'url': re.sub(r'\d+x\d+', f'{w}x{h}', thumb_base_url),
+            'width': w,
+            'height': h,
+        } for w, h in common_res] if thumb_base_url else None
+
         return {
             'id': video_id,
-            'title': self._live_title(title) if is_live else title,
+            'title': title,
             'description': clean_html(json_data.get('description')),
-            'thumbnail': json_data.get('thumbnail') or json_data.get('poster'),
+            'thumbnails': thumbnails,
             'duration': duration,
             'timestamp': parse_iso8601(json_data.get('published_at')),
             'uploader_id': json_data.get('account_id'),
@@ -608,7 +600,7 @@ class BrightcoveNewIE(AdobePassIE):
             'ip_blocks': smuggled_data.get('geo_ip_blocks'),
         })
 
-        account_id, player_id, embed, content_type, video_id = re.match(self._VALID_URL, url).groups()
+        account_id, player_id, embed, content_type, video_id = self._match_valid_url(url).groups()
 
         policy_key_id = '%s_%s' % (account_id, player_id)
         policy_key = self._downloader.cache.load('brightcove', policy_key_id)
@@ -691,6 +683,112 @@ class BrightcoveNewIE(AdobePassIE):
                  for vid in json_data.get('videos', []) if vid.get('id')],
                 json_data.get('id'), json_data.get('name'),
                 json_data.get('description'))
+
+        return self._parse_brightcove_metadata(
+            json_data, video_id, headers=headers)
+
+#for intercepted api call
+# Warning: header Accept:application/json;pk=policy_key_id  must be setted in order to work
+class BrightcoveNew2IE(BrightcoveNewIE):
+    IE_NAME = 'brightcove:new2'
+    _VALID_URL = r'https?://edge\.api\.brightcove\.com/playback/v\d+/accounts/(?P<account_id>\d+)/videos/(?P<video_id>[^/]+)'
+    _TESTS = [{
+        'url': 'http://players.brightcove.net/929656772001/e41d32dc-ec74-459e-a845-6c69f7b724ea_default/index.html?videoId=4463358922001',
+        'md5': 'c8100925723840d4b0d243f7025703be',
+        'info_dict': {
+            'id': '4463358922001',
+            'ext': 'mp4',
+            'title': 'Meet the man behind Popcorn Time',
+            'description': 'md5:eac376a4fe366edc70279bfb681aea16',
+            'duration': 165.768,
+            'timestamp': 1441391203,
+            'upload_date': '20150904',
+            'uploader_id': '929656772001',
+            'formats': 'mincount:20',
+        },
+    },  {
+        'url': 'http://players.brightcove.net/5690807595001/HyZNerRl7_default/index.html?playlistId=5743160747001',
+        'only_matching': True,
+    }, {
+        # ref: prefixed video id
+        'url': 'http://players.brightcove.net/3910869709001/21519b5c-4b3b-4363-accb-bdc8f358f823_default/index.html?videoId=ref:7069442',
+        'only_matching': True,
+    }, {
+        # non numeric ref: prefixed video id
+        'url': 'http://players.brightcove.net/710858724001/default_default/index.html?videoId=ref:event-stream-356',
+        'only_matching': True,
+    }, {
+        # unavailable video without message but with error_code
+        'url': 'http://players.brightcove.net/1305187701/c832abfb-641b-44eb-9da0-2fe76786505f_default/index.html?videoId=4377407326001',
+        'only_matching': True,
+    }]
+
+
+
+    def _real_extract(self, url):
+        url, smuggled_data = unsmuggle_url(url, {})
+        self._initialize_geo_bypass({
+            'countries': smuggled_data.get('geo_countries'),
+            'ip_blocks': smuggled_data.get('geo_ip_blocks'),
+        })
+
+        account_id,  video_id = self._match_valid_url(url).groups()
+
+        policy_key_id = '%s_%s' % (account_id, video_id)
+        #policy_key = self._downloader.cache.load('brightcove', policy_key_id)
+        policy_key_extracted = False
+        store_pk = lambda x: self._downloader.cache.store('brightcove', policy_key_id, x)
+
+        api_url = url;# 'https://edge.api.brightcove.com/playback/v1/accounts/%s/%ss/%s' % (account_id, content_type, video_id)
+        headers = {}
+        referrer = smuggled_data.get('referrer')
+        if referrer:
+            headers.update({
+                'Referer': referrer,
+                'Origin': re.search(r'https?://[^/]+', referrer).group(0),
+            })
+
+        for _ in range(2):
+            # if not policy_key:
+            #     policy_key = extract_policy_key()
+            #     policy_key_extracted = True
+            # headers['Accept'] = 'application/json;pk=%s' % policy_key
+            try:
+                json_data = self._download_json(api_url, video_id, headers=std_headers)
+                break
+            except ExtractorError as e:
+                if isinstance(e.cause, compat_HTTPError) and e.cause.code in (401, 403):
+                    json_data = self._parse_json(e.cause.read().decode(), video_id)[0]
+                    message = json_data.get('message') or json_data['error_code']
+                    if json_data.get('error_subcode') == 'CLIENT_GEO':
+                        self.raise_geo_restricted(msg=message)
+                    elif json_data.get('error_code') == 'INVALID_POLICY_KEY' and not policy_key_extracted:
+                        policy_key = None
+                        store_pk(None)
+                        continue
+                    raise ExtractorError(message, expected=True)
+                raise
+
+        errors = json_data.get('errors')
+        if errors and errors[0].get('error_subcode') == 'TVE_AUTH':
+            custom_fields = json_data['custom_fields']
+            tve_token = self._extract_mvpd_auth(
+                smuggled_data['source_url'], video_id,
+                custom_fields['bcadobepassrequestorid'],
+                custom_fields['bcadobepassresourceid'])
+            json_data = self._download_json(
+                api_url, video_id, headers={
+                    'Accept': 'application/json;pk=%s' % policy_key
+                }, query={
+                    'tveToken': tve_token,
+                })
+
+        # if content_type == 'playlist':
+        #     return self.playlist_result(
+        #         [self._parse_brightcove_metadata(vid, vid.get('id'), headers)
+        #          for vid in json_data.get('videos', []) if vid.get('id')],
+        #         json_data.get('id'), json_data.get('name'),
+        #         json_data.get('description'))
 
         return self._parse_brightcove_metadata(
             json_data, video_id, headers=headers)
