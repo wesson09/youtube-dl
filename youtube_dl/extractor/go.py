@@ -278,6 +278,8 @@ class GoIE(AdobePassIE):
 
         subtitles = {}
         for cc in video_data.get('closedcaption', {}).get('src', []):
+            if cc.get('type')=='timedtext': # time code are weird for these : ex:http://cdn1.edgedatg.com/re/video_fep/cc/WOM_102_ONLYSKIN_EPISODE_081a4dec-fadf-403c-af0c-f533d9870007_10616060_EN_01hr.xml
+                continue;
             cc_url = cc.get('value')
             if not cc_url:
                 continue
