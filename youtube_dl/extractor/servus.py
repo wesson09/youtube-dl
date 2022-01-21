@@ -130,15 +130,18 @@ class ServusIE(InfoExtractor):
         extension = os.path.splitext(path)[1]
         #extension = resource.get('extension')
         type_ = '';#resource.get('type')
+        is_live = False
         #if extension == 'jpg' or type_ == 'reference_keyframe':            thumbnail = format_url            continue
         ext = determine_ext(format_url)
         if type_ == 'dash' or ext == 'mpd':
             formats.extend(self._extract_mpd_formats(
                 format_url, video_id, mpd_id='dash', fatal=False))
         elif type_ == 'hls' or ext == 'm3u8':
-            formats.extend(self._extract_m3u8_formats(
+            live, fmts =self._extract_m3u8_live_and_formats(
                 format_url, video_id, 'mp4', entry_protocol='m3u8_native',
-                m3u8_id='hls', fatal=False))
+                m3u8_id='hls', fatal=False)
+            if live: is_live =True
+            formats.extend(fmts)
         elif extension == 'mp4' or ext == 'mp4':
             formats.append({
                 'url': format_url,
@@ -172,5 +175,5 @@ class ServusIE(InfoExtractor):
             'season': season, 
             'episode': episode, 
             'formats': formats,
-            #'is_live':True
+            'is_live':is_live
         }
