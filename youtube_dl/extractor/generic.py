@@ -137,9 +137,6 @@ from .arcpublishing import ArcPublishingIE
 from .medialaan import MedialaanIE
 from .simplecast import SimplecastIE
 
-from .jplayer import GenericJPlayerIE
-from .airtime import  GenericAirtimeIE
-
 class GenericIE(InfoExtractor):
     IE_DESC = 'Generic downloader that works on some sites'
     _VALID_URL = r'.*'
@@ -2303,87 +2300,6 @@ class GenericIE(InfoExtractor):
             'entries': entries,
         }
 
-    def _extract_jplayer(self, url, video_id, webpage):
-        """ Returns None if no jplayer video can be found. """
-        # return GenericJPlayerIE._extract_urls(webpage,url)
-        # locate jplayer script
-        f = re.findall(r'<script .*src=.*jplayer.*.js', webpage);
-        if len(f) == 0:  # no jplayer script found
-            return None;
-
-        f = re.findall(r'{[\s|.]*title:\s*"(?P<TITLE>[^"]*)",[\s|.]*mp3:\s*"(?P<MP3>[^"]*)"[\s|.]*', webpage);
-        if len(f) == 0:  # no jplayer script found
-            return None;
-
-        # get /player/rtdata/tracks.json to retrieve current title...or not....
-
-        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
-        m = URL_RE.match(url)
-        dom = m.group('domain')
-        resjs = self._download_json(dom + '/player/rtdata/tracks.json', f[0][1], fatal=False, note=None);
-        title = ''
-        try:
-            title = resjs[0]['artist'] + '-' + resjs[0]['titre']
-        except:
-            title = f[0][0]
-
-        formats = [];
-
-        formats.append({
-            'url': f[0][1],
-            'vcodec': 'none',
-            'ext': 'mp3',
-            'is_live': True,  # most are radios
-        })
-
-        self._downloader.params['onlinemetadata']=2; #interval between metadata request
-        self._downloader.params['urlmetadata']=f[0][1];
-        return {
-            'id': f[0][0],
-            'title': title,
-            'formats': formats,
-            'url': url,
-        }
-
-    def _extract_airtime(self, url, video_id, webpage):
-        """ Returns None if no jplayer video can be found. """
-        # locate jplayer script
-        f = re.findall(r'<script .*src=.*airtime.*.js', webpage);
-        if len(f) == 0: # no jplayer script found
-            return None;
-        f = re.findall(r'availableDesktopStreamQueue[\s|.]*=[\s|.]*\[{"url":"(?P<URL>[^"]*)","codec":"(?P<CODEC>[^"]*)","bitrate":(?P<bitrate>[^,]*)', webpage);
-        if len(f) == 0: # no jplayer script found
-            return None;
-        contenturl = f[0][0].replace('\\', '');
-
-        #   get /api/live-info to retrieve current title...or not....
-
-        URL_RE = re.compile('(?P<domain>https?://[^/]+)/')
-        m = URL_RE.match(url)
-
-        dom = m.group('domain')
-        resjs = self._download_json(dom + '/api/live-info', f[0][1], fatal=False, note=None);
-        title = ''
-        try:
-            title = resjs['current']['name']
-        except:
-            title = 'LibreTime Radio'
-
-        formats = [];
-        formats.append({
-            'url': contenturl,
-            'acodec': f[0][1],
-            'ext': 'mp3',
-            'is_live': True,  # most are radios
-        })
-        self._downloader.params['onlinemetadata']=2; #interval between metadata request
-        self._downloader.params['urlmetadata']=contenturl;
-        return {
-            'id': url,
-            'title': title,
-            'formats': formats,
-            'url': url,
-        }
 
     def _extract_camtasia(self, url, video_id, webpage):
         """ Returns None if no camtasia video can be found. """

@@ -10,7 +10,6 @@ from typing import *
 from urllib import parse
 from ssl import SSLSocket
 
-import requests
 
 from .common import InfoExtractor
 from .turner import TurnerBaseIE
@@ -202,10 +201,11 @@ import ssl
 
 #import M2Crypto
 #import OpenSSL
-import traceback
 from youtube_dl import utils
-import urllib3
-from urllib3 import  request
+
+from youtube_dl.compat import (
+  compat_urllib_request
+)
 from threading import Thread
 class HeadRequest(Thread,InfoExtractor):
     headrequeststring = 0
@@ -229,7 +229,7 @@ class HeadRequest(Thread,InfoExtractor):
         nbtry=0;
         while fail and nbtry<10:
             try:
-               s = requests.session()
+               s = compat_urllib_request.session()
                s.headers=self.headers;
 #                url_or_request = urllib3.re(
 #                    method="HEAD",
@@ -254,7 +254,7 @@ class HeadRequest(Thread,InfoExtractor):
                fail=False;
             except Exception as e:
                 print(e)
-                traceback.print_exc()
+                #traceback.print_exc()
                 fail=True;
                 time.sleep(1);
             finally:

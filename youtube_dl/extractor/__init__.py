@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
-from .jplayer import  GenericJPlayerIE
-from .airtime import  GenericAirtimeIE
+
 
 try:
     from .lazy_extractors import *
@@ -19,8 +18,8 @@ except ImportError:
     _ALL_CLASSES.append(GenericIE)
 
     #add those after Generic in order not to be selected via regex
-    _ALL_CLASSES.append(GenericJPlayerIE)#only used in GenericIE : not loaded as regex extractors
-    _ALL_CLASSES.append(GenericAirtimeIE)#only used in GenericIE : not loaded as regex extractors
+    # _ALL_CLASSES.append(GenericJPlayerIE)#only used in GenericIE : not loaded as regex extractors
+    # _ALL_CLASSES.append(GenericAirtimeIE)#only used in GenericIE : not loaded as regex extractors
 
 
 def gen_extractor_classes():

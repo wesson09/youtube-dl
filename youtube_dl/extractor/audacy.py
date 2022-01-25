@@ -17,7 +17,6 @@ from ..utils import (
     strip_or_none,
     try_get,
 )
-import requests
 
 
 class AudacyHLSHackerIE(InfoExtractor):  # TurnerBaseIE):

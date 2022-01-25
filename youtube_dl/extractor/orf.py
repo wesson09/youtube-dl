@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import re
 
+
 from .common import InfoExtractor
 from ..compat import compat_str
 from ..utils import (
@@ -74,6 +75,7 @@ class ORFTVthekIE(InfoExtractor):
         entries = []
         for sd in data_jsb:
             video_id, title = sd.get('id'), sd.get('title')
+            is_live = False
             if not video_id or not title:
                 continue
             video_id = compat_str(video_id)
@@ -89,8 +91,9 @@ class ORFTVthekIE(InfoExtractor):
                         format_id_list.append(value)
                 format_id = '-'.join(format_id_list)
                 ext = determine_ext(src)
+                flive = False
                 if ext == 'm3u8':
-                    m3u8_formats = self._extract_m3u8_formats(
+                    flive, m3u8_formats = self._extract_m3u8_live_and_formats(
                         src, video_id, 'mp4', m3u8_id=format_id, fatal=False)
                     if any('/geoprotection' in f['url'] for f in m3u8_formats):
                         self.raise_geo_restricted()
@@ -99,15 +102,15 @@ class ORFTVthekIE(InfoExtractor):
                     formats.extend(self._extract_f4m_formats(
                         src, video_id, f4m_id=format_id, fatal=False))
                 elif ext == 'mpd':
-                    formats.extend(self._extract_mpd_formats(
-                        src, video_id, mpd_id=format_id, fatal=False))
+                    flive, f = self._extract_mpd_live_and_formats(src, video_id, mpd_id=format_id, fatal=False)
+                    formats.extend(f)
                 else:
                     formats.append({
                         'format_id': format_id,
                         'url': src,
                         'protocol': fd.get('protocol'),
                     })
-
+                is_live = is_live or flive;
             # Check for geoblocking.
             # There is a property is_geoprotection, but that's always false
             geo_str = sd.get('geoprotection_string')
@@ -162,17 +165,22 @@ class ORFTVthekIE(InfoExtractor):
                     'preference': 1,
                 })
 
-            entries.append({
+            entry = {
                 '_type': 'video',
                 'id': video_id,
                 'title': title,
+                'url': src,
                 'formats': formats,
                 'subtitles': subtitles,
                 'description': sd.get('description'),
                 'duration': int_or_none(sd.get('duration_in_seconds')),
                 'upload_date': upload_date,
                 'thumbnails': thumbnails,
-            })
+                'is_live' : is_live,
+            }
+            if is_live:
+                return entry
+            entries.append(entry)
 
         return {
             '_type': 'playlist',

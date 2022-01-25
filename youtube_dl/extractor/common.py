@@ -959,7 +959,7 @@ class InfoExtractor(object):
         raise GeoRestrictedError(msg, countries=countries)
 
     @staticmethod
-    def raise_drm_restricted(msg='This video have DRM'):
+    def raise_drm_restricted(msg='This video has DRM'):
         raise DRMError(msg)
 
     # Methods for following #608
@@ -2151,6 +2151,22 @@ class InfoExtractor(object):
         mpd_base_url = base_url(urlh.geturl())
 
         return self._parse_mpd_formats(
+            mpd_doc, mpd_id, mpd_base_url, mpd_url)
+
+    def _extract_mpd_live_and_formats(self, mpd_url, video_id, mpd_id=None, note=None, errnote=None, fatal=True, data=None, headers={}, query={}):
+        res = self._download_xml_handle(
+            mpd_url, video_id,
+            note=note or 'Downloading MPD manifest',
+            errnote=errnote or 'Failed to download MPD manifest',
+            fatal=fatal, data=data, headers=headers, query=query)
+        if res is False:
+            return False, []
+        mpd_doc, urlh = res
+        if mpd_doc is None:
+            return False,[]
+        mpd_base_url = base_url(urlh.geturl())
+
+        return mpd_doc.get('type') == 'dynamic', self._parse_mpd_formats(
             mpd_doc, mpd_id, mpd_base_url, mpd_url)
 
     def _parse_mpd_formats(self, mpd_doc, mpd_id=None, mpd_base_url='', mpd_url=None):
