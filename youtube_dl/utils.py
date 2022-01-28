@@ -2387,8 +2387,8 @@ class GeoRestrictedError(ExtractorError):
 class DRMError(ExtractorError):
     """DRM  Error exception.
 
-    This exception may be thrown when a video is not available from your
-    geographic location due to geographic restrictions imposed by a website.
+    This exception may be thrown when a video is protected by DRM
+    msg gives more info on the DRM type
     """
     def __init__(self, msg ):
         super(DRMError, self).__init__(msg, expected=True)

@@ -111,9 +111,9 @@ class RadioCanadaIE(InfoExtractor):
         v_url = v_data.get('url')
         if not v_url:
             error = v_data['message']
-            if error == "Le contenu sélectionné n'est pas disponible dans votre pays":
+            if error == "Le contenu selectionné n'est pas disponible dans votre pays":
                 raise self.raise_geo_restricted(error, self._GEO_COUNTRIES)
-            if error == 'Le contenu sélectionné est disponible seulement en premium':
+            if error == 'Le contenu selectionné est disponible seulement en premium':
                 self.raise_login_required(error)
             raise ExtractorError(
                 '%s said: %s' % (self.IE_NAME, error), expected=True)
