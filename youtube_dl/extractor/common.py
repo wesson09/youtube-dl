@@ -959,8 +959,8 @@ class InfoExtractor(object):
         raise GeoRestrictedError(msg, countries=countries)
 
     @staticmethod
-    def raise_drm_restricted(msg='This video has DRM'):
-        raise DRMError(msg)
+    def raise_drm_restricted(msg=''):
+        raise DRMError('This video is DRM protected: '+msg)
 
     # Methods for following #608
     @staticmethod
@@ -1695,11 +1695,13 @@ class InfoExtractor(object):
     def _parse_m3u8_formats(self, m3u8_doc, m3u8_url, ext=None,
                             entry_protocol='m3u8', preference=None,
                             m3u8_id=None, live=False):
-        islive=False;
+        islive = False
         if '#EXT-X-FAXS-CM:' in m3u8_doc:  # Adobe Flash Access
+            self.raise_drm_restricted('HLS: Adobe Flash Access')
             return False,[]
 
-        if re.search(r'#EXT-X-SESSION-KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
+        if re.search(r'#EXT-X-(SESSION-)?KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
+            self.raise_drm_restricted('HLS: Apple FairPlay')
             return False,[]
 
         formats = []
@@ -1738,13 +1740,13 @@ class InfoExtractor(object):
                     #print(whichone)  # ??? to do seek url
                     path=whichone[len(whichone) - 1];
                     fragments.append({'url':format_url(path)})
-            return False,[{
+            return False, [{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
                 'ext': ext,
                 'protocol': entry_protocol,
                 'preference': preference,
-                'fragments':fragments,
+                'fragments': fragments,
             }]
 
         groups = {}
@@ -2186,8 +2188,17 @@ class InfoExtractor(object):
         def _add_ns(path):
             return self._xpath_ns(path, namespace)
 
-        def is_drm_protected(element):
-            return element.find(_add_ns('ContentProtection')) is not None
+        def get_drm_protections(element):
+            return element.findall(_add_ns('ContentProtection'))
+
+        def get_drm_message(protect_elements):
+            drmmsg = 'dash /'
+            for p in protect_elements:
+                try:
+                    drmmsg = drmmsg + ' ' + p.attrib['value']
+                except:
+                    continue
+            return drmmsg
 
         def extract_multisegment_info(element, ms_parent_info):
             ms_info = ms_parent_info.copy()
@@ -2255,13 +2266,19 @@ class InfoExtractor(object):
                 'start_number': 1,
                 'timescale': 1,
             })
+            protects = [];
             for adaptation_set in period.findall(_add_ns('AdaptationSet')):
-                if is_drm_protected(adaptation_set):
-                    self.raise_drm_restricted() #continue
+                protects = get_drm_protections(adaptation_set)
+                if len(protects) > 0:
+                    drmmsg = get_drm_message(protects)
+                    self.raise_drm_restricted(drmmsg)
+
                 adaption_set_ms_info = extract_multisegment_info(adaptation_set, period_ms_info)
                 for representation in adaptation_set.findall(_add_ns('Representation')):
-                    if is_drm_protected(representation):
-                        self.raise_drm_restricted() #continue
+                    protects = get_drm_protections(adaptation_set)
+                    if len(protects) > 0:
+                        drmmsg = get_drm_message(protects)
+                        self.raise_drm_restricted(drmmsg)
                     representation_attrib = adaptation_set.attrib.copy()
                     representation_attrib.update(representation.attrib)
                     # According to [1, 5.3.7.2, Table 9, page 41], @mimeType is mandatory
@@ -2452,6 +2469,7 @@ class InfoExtractor(object):
                         formats.append(f)
                     else:
                         self.report_warning('Unknown MIME type %s in DASH manifest' % mime_type)
+
         return formats
 
     def _extract_ism_formats(self, ism_url, video_id, ism_id=None, note=None, errnote=None, fatal=True, data=None, headers={}, query={}):
