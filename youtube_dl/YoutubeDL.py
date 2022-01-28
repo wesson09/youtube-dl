@@ -1360,11 +1360,11 @@ class YoutubeDL(object):
                         return
                     # Formats must be opposite (video+audio)
                     #commented : sometime video and audio are already merged?
-                    # if formats_info[0].get('acodec') == 'none' and formats_info[1].get('acodec') == 'none':
-                    #     self.report_error(
-                    #         'Both formats %s and %s are video-only, you must specify "-f video+audio"'
-                    #         % (format_1, format_2))
-                    #     return
+                    if formats_info[0].get('acodec') == 'none' and formats_info[1].get('acodec') == 'none':
+                        self.report_error(
+                            'Both formats %s and %s are video-only, you must specify "-f video+audio"'
+                            % (format_1, format_2))
+                        return
                     output_ext = (
                         formats_info[0]['ext']
                         if self.params.get('merge_output_format') is None
