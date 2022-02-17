@@ -2743,7 +2743,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                     self.raise_geo_restricted(subreason, countries);#, metadata_available=True)
                 reason += f'. {subreason}'
             if reason:
-                self._report_alerts(reason, Fatal=True)
+                self._report_alerts([['ERROR',reason]], fatal=True)
 
         keywords = get_first(video_details, 'keywords', expected_type=list) or []
         if not keywords and webpage:
