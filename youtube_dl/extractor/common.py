@@ -1914,7 +1914,7 @@ class InfoExtractor(object):
                 out.append('{%s}%s' % (namespace, c))
         return '/'.join(out)
 
-    def _extract_smil_formats(self, smil_url, video_id, fatal=True, f4m_params=None, transform_source=None):
+    def _extract_smil_live_and_formats(self, smil_url, video_id, fatal=True, f4m_params=None, transform_source=None):
         smil = self._download_smil(smil_url, video_id, fatal=fatal, transform_source=transform_source)
 
         if smil is False:
@@ -1938,9 +1938,10 @@ class InfoExtractor(object):
             'Unable to download SMIL file', fatal=fatal, transform_source=transform_source)
 
     def _parse_smil(self, smil, smil_url, video_id, f4m_params=None):
+
         namespace = self._parse_smil_namespace(smil)
 
-        formats = self._parse_smil_formats(
+        is_live, formats = self._parse_smil_formats(
             smil, smil_url, video_id, namespace=namespace, f4m_params=f4m_params)
         subtitles = self._parse_smil_subtitles(smil, namespace=namespace)
 
@@ -1959,6 +1960,52 @@ class InfoExtractor(object):
                 description = content
             elif not upload_date and name == 'date':
                 upload_date = unified_strdate(content)
+
+        # '''
+        # MediaDescription Attributes
+        # abstract
+        #     A brief description of the content contained in the element. Unlike alt, this attribute is generally not displayed as alternate content to the media object. It is typically used as a description when table of contents information is generated from a SMIL presentation, and typically contains more information than would be advisable to put in an alt attribute.
+        #
+        #     This attribute is deprecated in favor of using appropriate SMIL metadata markup in RDF. For example, this attribute maps well to the "description" attribute as defined by the Dublin Core Metadata Initiative [DC] .
+        # author
+        #     The name of the author of the content contained in the element.
+        #
+        #     The value of this attribute is a CDATA text string.
+        # copyright
+        #     The copyright notice of the content contained in the element.
+        #
+        #     The value of this attribute is a CDATA text string.
+        # title
+        #     The title attribute as defined in the SMIL Structure module. It is strongly recommended that all media object elements have a title attribute with a brief, meaningful description. Authoring tools should ensure that no element may be introduced into a SMIL document without this attribute.
+        # xml:lang
+        #     Used to identify the natural or formal language for the element. For a complete description, see section 2.12 Language Identification of [XML11]. '''
+        MediaDescription  = [{
+            'abstract': vid.get('abstract') if vid.get('abstract') else '',
+            'src': vid.get('src') if vid.get('src') else '',
+            'author': vid.get('author') if vid.get('author') else '',
+            'copyright': vid.get('copyright') if vid.get('copyright') else '',
+            'title': vid.get('title') if vid.get('title') else '',
+        } for vid in smil.findall(self._xpath_ns('.//video', namespace)) if vid.get('src')]
+
+        if len(MediaDescription)>0:
+            if MediaDescription[0]['title'] != '':
+                title = MediaDescription[0]['title']
+            if MediaDescription[0]['abstract'] != '':
+                description = MediaDescription[0]['abstract']
+        else:
+            #seek audio
+            MediaDescription = [{
+                'abstract': vid.get('abstract') if vid.get('abstract') else '',
+                'src': vid.get('src') if vid.get('src') else '',
+                'author': vid.get('author') if vid.get('author') else '',
+                'copyright': vid.get('copyright') if vid.get('copyright') else '',
+                'title': vid.get('title') if vid.get('title') else '',
+            } for vid in smil.findall(self._xpath_ns('.//audio', namespace)) if vid.get('src')]
+            if len(MediaDescription) > 0:
+                if MediaDescription[0]['title'] != '':
+                    title = MediaDescription[0]['title']
+                if MediaDescription[0]['abstract'] != '':
+                    description = MediaDescription[0]['abstract']
 
         thumbnails = [{
             'id': image.get('type'),
@@ -2034,9 +2081,12 @@ class InfoExtractor(object):
             src_url = src if src.startswith('http') else compat_urlparse.urljoin(base, src)
             src_url = src_url.strip()
 
+            is_live = False;
             if proto == 'm3u8' or src_ext == 'm3u8':
-                m3u8_formats = self._extract_m3u8_formats(
+                live, m3u8_formats = self._extract_m3u8_live_and_formats(
                     src_url, video_id, ext or 'mp4', m3u8_id='hls', fatal=False)
+                if live:
+                    is_live=True;
                 if len(m3u8_formats) == 1:
                     m3u8_count += 1
                     m3u8_formats[0].update({
@@ -2074,7 +2124,7 @@ class InfoExtractor(object):
                     'height': height,
                 })
 
-        return formats
+        return is_live, formats
 
     def _parse_smil_subtitles(self, smil, namespace=None, subtitles_lang='en'):
         urls = []
@@ -2839,7 +2889,7 @@ class InfoExtractor(object):
                 video_id, mpd_id='dash', fatal=False))
         if re.search(r'(?:/smil:|\.smil)', url_base):
             if 'smil' not in skip_protocols:
-                rtmp_formats = self._extract_smil_formats(
+                rtmp_formats = self._extract_smil_live_and_formats(
                     manifest_url('jwplayer.smil'),
                     video_id, fatal=False)
                 for rtmp_format in rtmp_formats:
@@ -2974,8 +3024,9 @@ class InfoExtractor(object):
                 formats.extend(self._extract_mpd_formats(
                     source_url, video_id, mpd_id=mpd_id, fatal=False))
             elif ext == 'smil':
-                formats.extend(self._extract_smil_formats(
-                    source_url, video_id, fatal=False))
+                live, formatbis = self._extract_smil_live_and_formats(
+                    source_url, video_id, fatal=False)
+                formats.extend(formatbis)
             # https://github.com/jwplayer/jwplayer/blob/master/src/js/providers/default.js#L67
             elif source_type.startswith('audio') or ext in (
                     'oga', 'aac', 'mp3', 'mpeg', 'vorbis'):
