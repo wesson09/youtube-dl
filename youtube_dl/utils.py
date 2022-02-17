@@ -4519,9 +4519,12 @@ def age_restricted(content_limit, age_limit):
 """ lazy JSON detection by examining its first byte. """
 def is_json(first_bytes):
     try:
-        return first_bytes.decode('utf-8')[0] in['[','{',
-                                                 #blacklist js too
-                                                 '('];
+        dec = first_bytes.decode('utf-8')
+        if dec.index('!function')==0:#blacklist consent.php (kind of js?)
+            return True
+        return dec[0] in['[','{',
+                         #blacklist js too
+                         '('];
     except:
         return False;
 
