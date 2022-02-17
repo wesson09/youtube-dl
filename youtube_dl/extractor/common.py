@@ -1729,10 +1729,8 @@ class InfoExtractor(object):
         format_note=''
         if '#EXT-X-TARGETDURATION' in m3u8_doc:  # media playlist, return as is
             if not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist tagged 'live_blacklist' to be ignored later
-              format_note = 'live_blacklist'
-            #   return True,[{
-            #     'live': True,
-            # }]
+               format_note = 'live_blacklist'
+               return True,[{}]
             # get all fragments uri
             fragments = []
             for line in m3u8_doc.splitlines():
@@ -1741,7 +1739,7 @@ class InfoExtractor(object):
                     #print(whichone)  # ??? to do seek url
                     path=whichone[len(whichone) - 1];
                     fragments.append({'url':format_url(path)})
-            return False, [{
+            return format_note=='live_blacklist', [{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
                 'ext': ext,
@@ -1755,23 +1753,24 @@ class InfoExtractor(object):
         last_stream_inf = {}
 
         def extract_media(x_media_line):
+            live = False
             media = parse_m3u8_attributes(x_media_line)
             # As per [1, 4.3.4.1] TYPE, GROUP-ID and NAME are REQUIRED
             media_type, group_id, name = media.get('TYPE'), media.get('GROUP-ID'), media.get('NAME')
             if not (media_type and group_id and name):
-                return
+                return live
             groups.setdefault(group_id, []).append(media)
             if media_type not in ('VIDEO', 'AUDIO'):
-                return
+                return live
             media_url = media.get('URI')
             if media_url:
                 format_id = []
                 for v in (m3u8_id, group_id, name):
                     if v:
                         format_id.append(v)
-                sub = self._extract_m3u8_formats(format_url(media_url), '-'.join(format_id), 'mp4')
-                if 'live' in sub[0] and sub[0]['live']:
-                    live=True;
+                live,sub = self._extract_m3u8_live_and_formats(format_url(media_url), '-'.join(format_id), 'mp4')
+                # if 'live' in sub[0] and sub[0]['live']:
+                #     live=True;
                 f = {
                     'format_id': '-'.join(format_id),
                     'url': format_url(media_url),
@@ -1785,6 +1784,7 @@ class InfoExtractor(object):
                 if media_type == 'AUDIO':
                     f['vcodec'] = 'none'
                 formats.append(f)
+                return live
 
         def build_stream_name():
             # Despite specification does not mention NAME attribute for
@@ -1809,9 +1809,11 @@ class InfoExtractor(object):
         # parse EXT-X-MEDIA tags before EXT-X-STREAM-INF in order to have the
         # chance to detect video only formats when EXT-X-STREAM-INF tags
         # precede EXT-X-MEDIA tags in HLS manifest such as [3].
+
         for line in m3u8_doc.splitlines():
             if line.startswith('#EXT-X-MEDIA:'):
-                extract_media(line)
+                if extract_media(line):
+                    live = True
 
         for line in m3u8_doc.splitlines():
             if line.startswith('#EXT-X-STREAM-INF:'):
@@ -1833,8 +1835,8 @@ class InfoExtractor(object):
                     format_id.append(stream_name if stream_name else '%d' % (tbr if tbr else len(formats)))
                 manifest_url = format_url(line.strip())
 
-                sub = self._extract_m3u8_formats(manifest_url, '-'.join(format_id), 'mp4')
-                if 'live' in sub[0] and sub[0]['live']:
+                sublive,sub = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4')
+                if sublive:
                     live=True;
 
                 f = {
@@ -2302,6 +2304,9 @@ class InfoExtractor(object):
         formats = []
         for period in mpd_doc.findall(_add_ns('Period')):
             period_duration = parse_duration(period.get('duration')) or mpd_duration
+            if not period_duration:
+                self.report_warning('Dash: period.duration is not defined', video_id=mpd_url)
+                period_duration=1 #set arbitrary period : WARNING use ffmpeg instead of native dash downloader
             period_ms_info = extract_multisegment_info(period, {
                 'start_number': 1,
                 'timescale': 1,
