@@ -85,6 +85,9 @@ class VideoPressIE(InfoExtractor):
                 'quality': len(QUALITIES),
                 'width': int_or_none(video.get('width')),
                 'height': int_or_none(video.get('height')),
+                #VSO HACK: add dummy vcodec and acodec to say original have both
+                'acodec':'aac','vcodec':'mp4'
+
             })
         self._sort_formats(formats)
 
