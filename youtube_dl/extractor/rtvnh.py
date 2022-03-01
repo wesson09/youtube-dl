@@ -30,7 +30,7 @@ class RTVNHIE(InfoExtractor):
                 '%s returned error code %d' % (self.IE_NAME, status), expected=True)
 
         formats = []
-        rtmp_formats = self._extract_smil_formats(
+        rtmp_formats = self._extract_smil_live_and_formats(
             'http://www.rtvnh.nl/video/smil?m=' + video_id, video_id)
         formats.extend(rtmp_formats)
 

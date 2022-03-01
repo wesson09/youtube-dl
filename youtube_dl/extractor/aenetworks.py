@@ -53,7 +53,7 @@ class AENetworksBaseIE(ThePlatformIE):
             m_url = update_url_query(smil_url, q)
             m_url = self._sign_url(m_url, self._THEPLATFORM_KEY, self._THEPLATFORM_SECRET)
             try:
-                tp_formats, tp_subtitles = self._extract_theplatform_smil(
+                is_live, tp_formats, tp_subtitles = self._extract_theplatform_smil(
                     m_url, video_id, 'Downloading %s SMIL data' % (q.get('switch') or q['assetTypes']))
             except ExtractorError as e:
                 if isinstance(e, GeoRestrictedError):

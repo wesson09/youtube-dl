@@ -2405,7 +2405,7 @@ class GenericIE(InfoExtractor):
         head_response = self._request_webpage(
             head_req, video_id,
             note=False, errnote='Could not send HEAD request to %s' % url,
-            fatal=False)#, headers = std_headers
+            fatal=False)#, headers = std_headers)
 
 
         if head_response is not False:
@@ -3386,6 +3386,7 @@ class GenericIE(InfoExtractor):
                     'id': video_id,
                     'title': video_title,
                 })
+                return entries[0]
             else:
                 for num, entry in enumerate(entries, start=1):
                     entry.update({
@@ -3582,7 +3583,7 @@ class GenericIE(InfoExtractor):
 
             ext = determine_ext(video_url)
             if ext == 'smil':
-                entry_info_dict['formats'] = self._extract_smil_formats(video_url, video_id)
+                live, entry_info_dict['formats'] = self._extract_smil_live_and_formats(video_url, video_id)
             elif ext == 'xspf':
                 return self.playlist_result(self._extract_xspf_playlist(video_url, video_id), video_id)
             elif ext == 'm3u8':

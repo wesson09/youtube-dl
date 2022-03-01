@@ -87,7 +87,7 @@ class AMCNetworksIE(ThePlatformIE):
             query['auth'] = self._extract_mvpd_auth(
                 url, video_id, requestor_id, resource)
         media_url = update_url_query(media_url, query)
-        formats, subtitles = self._extract_theplatform_smil(
+        is_live, formats, subtitles = self._extract_theplatform_smil(
             media_url, video_id)
         self._sort_formats(formats)
         info.update({

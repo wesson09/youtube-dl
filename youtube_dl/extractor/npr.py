@@ -89,7 +89,7 @@ class NprIE(InfoExtractor):
                             format_url, media_id, 'mp4', 'm3u8_native',
                             m3u8_id='hls', fatal=False))
                     elif format_id == 'smil':
-                        smil_formats = self._extract_smil_formats(
+                        live, smil_formats = self._extract_smil_live_and_formats(
                             format_url, media_id, transform_source=lambda s: s.replace(
                                 'rtmp://flash.npr.org/ondemand/', 'https://ondemand.npr.org/'))
                         self._check_formats(smil_formats, media_id)

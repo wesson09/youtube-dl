@@ -139,7 +139,7 @@ class MediasetIE(ThePlatformBaseIE):
             # TODO: fixup ISM+none manifest URLs
             for f in ('MPEG4', 'MPEG-DASH+none', 'M3U+none'):
                 try:
-                    tp_formats, tp_subtitles = self._extract_theplatform_smil(
+                    is_live, tp_formats, tp_subtitles = self._extract_theplatform_smil(
                         update_url_query('http://link.theplatform.%s/s/%s' % (self._TP_TLD, tp_path), {
                             'mbr': 'true',
                             'formats': f,

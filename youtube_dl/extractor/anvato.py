@@ -280,7 +280,8 @@ class AnvatoIE(InfoExtractor):
             ext = determine_ext(video_url)
 
             if ext == 'smil' or media_format == 'smil':
-                formats.extend(self._extract_smil_formats(video_url, video_id))
+                live, formatbis = self._extract_smil_live_and_formats(video_url, video_id)
+                formats.extend(formatbis)
                 continue
 
             tbr = int_or_none(published_url.get('kbps'))

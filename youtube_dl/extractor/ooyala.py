@@ -70,8 +70,9 @@ class OoyalaBaseIE(InfoExtractor):
                 self._extract_ism_formats(
                     s_url, embed_code, ism_id='mss', fatal=False)
             elif ext == 'smil':
-                formats.extend(self._extract_smil_formats(
-                    s_url, embed_code, fatal=False))
+                live, formatbis = self._extract_smil_live_and_formats(
+                    s_url, embed_code, fatal=False)
+                formats.extend(formatbis)
             else:
                 formats.append({
                     'url': s_url,

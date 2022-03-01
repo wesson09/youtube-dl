@@ -51,7 +51,7 @@ class ThePlatformBaseIE(OnceIE):
                     raise ExtractorError(
                         error_element.attrib['abstract'], expected=True)
 
-        smil_formats = self._parse_smil_formats(
+        is_live, smil_formats = self._parse_smil_formats(
             meta, smil_url, video_id, namespace=default_ns,
             # the parameters are from syfy.com, other sites may use others,
             # they also work for nbc.com
@@ -73,7 +73,7 @@ class ThePlatformBaseIE(OnceIE):
 
         subtitles = self._parse_smil_subtitles(meta, default_ns)
 
-        return formats, subtitles
+        return is_live, formats, subtitles
 
     def _download_theplatform_metadata(self, path, video_id):
         info_url = 'http://link.theplatform.%s/s/%s?format=preview' % (self._TP_TLD, path)
@@ -305,7 +305,7 @@ class ThePlatformIE(ThePlatformBaseIE, AdobePassIE):
         if sig:
             smil_url = self._sign_url(smil_url, sig['key'], sig['secret'])
 
-        formats, subtitles = self._extract_theplatform_smil(smil_url, video_id)
+        is_live, formats, subtitles = self._extract_theplatform_smil(smil_url, video_id)
         self._sort_formats(formats)
 
         ret = self._extract_theplatform_metadata(path, video_id)
@@ -314,6 +314,7 @@ class ThePlatformIE(ThePlatformBaseIE, AdobePassIE):
             'id': video_id,
             'formats': formats,
             'subtitles': combined_subtitles,
+            'is_live': is_live,
         })
 
         return ret
@@ -371,7 +372,7 @@ class ThePlatformFeedIE(ThePlatformBaseIE):
                 }
                 if asset_type in asset_types_query:
                     query.update(asset_types_query[asset_type])
-                cur_formats, cur_subtitles = self._extract_theplatform_smil(update_url_query(
+                is_live, cur_formats, cur_subtitles = self._extract_theplatform_smil(update_url_query(
                     main_smil_url or smil_url, query), video_id, 'Downloading SMIL data for %s' % asset_type)
                 formats.extend(cur_formats)
                 subtitles = self._merge_subtitles(subtitles, cur_subtitles)

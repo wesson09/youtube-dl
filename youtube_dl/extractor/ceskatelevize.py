@@ -150,11 +150,11 @@ class CeskaTelevizeIE(InfoExtractor):
                     if 'drmOnly=true' in stream_url:
                         continue
                     if 'playerType=flash' in stream_url:
-                        stream_formats = self._extract_m3u8_formats(
+                        live, stream_formats = self._extract_m3u8_live_and_formats(
                             stream_url, playlist_id, 'mp4', 'm3u8_native',
                             m3u8_id='hls-%s' % format_id, fatal=False)
                     else:
-                        stream_formats = self._extract_mpd_formats(
+                        live, stream_formats = self._extract_mpd_live_and_formats(
                             stream_url, playlist_id,
                             mpd_id='dash-%s' % format_id, fatal=False)
                     # See https://github.com/ytdl-org/youtube-dl/issues/12119#issuecomment-280037031

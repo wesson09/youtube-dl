@@ -163,9 +163,10 @@ class PikselIE(InfoExtractor):
                 # TODO: figure out if this is something to be fixed in urljoin,
                 # _parse_smil_formats or keep it here
                 transform_source = lambda x: x.replace('src="/', 'src="').replace('/media"', '/media/"')
-            formats.extend(self._extract_smil_formats(
+                live, formatbis = self._extract_smil_live_and_formats(
                 re.sub(r'/od/[^/]+/', '/od/http/', smil_url), video_id,
-                transform_source=transform_source, fatal=False))
+                transform_source=transform_source, fatal=False)
+            formats.extend(formatbis)
 
         self._sort_formats(formats)
 

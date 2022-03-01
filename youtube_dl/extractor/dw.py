@@ -56,7 +56,7 @@ class DWIE(InfoExtractor):
         media_id = hidden_inputs.get('media_id') or media_id
 
         if hidden_inputs.get('player_type') == 'video' and hidden_inputs.get('stream_file') == '1':
-            formats = self._extract_smil_formats(
+            live, formats = self._extract_smil_live_and_formats(
                 'http://www.dw.com/smil/v-%s' % media_id, media_id,
                 transform_source=lambda s: s.replace(
                     'rtmp://tv-od.dw.de/flash/',

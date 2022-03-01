@@ -48,18 +48,20 @@ class ZDFBaseIE(InfoExtractor):
         return subtitles
 
     def _extract_format(self, video_id, formats, format_urls, meta):
+        live = False
         format_url = url_or_none(meta.get('url'))
         if not format_url:
-            return
+            return False
         if format_url in format_urls:
-            return
+            return False
         format_urls.add(format_url)
         mime_type = meta.get('mimeType')
         ext = determine_ext(format_url)
         if mime_type == 'application/x-mpegURL' or ext == 'm3u8':
-            formats.extend(self._extract_m3u8_formats(
+            live, formatbis =self._extract_m3u8_live_and_formats(
                 format_url, video_id, 'mp4', m3u8_id='hls',
-                entry_protocol='m3u8_native', fatal=False))
+                entry_protocol='m3u8_native', fatal=False)
+            formats.extend(formatbis)
         elif mime_type == 'application/f4m+xml' or ext == 'f4m':
             formats.extend(self._extract_f4m_formats(
                 update_url_query(format_url, {'hdcore': '3.7.0'}), video_id, f4m_id='hds', fatal=False))
@@ -78,6 +80,7 @@ class ZDFBaseIE(InfoExtractor):
                 'preference': -10,
             })
             formats.append(f)
+            return live
 
     def _extract_ptmd(self, ptmd_url, video_id, api_token, referrer):
         ptmd = self._call_api(
@@ -100,14 +103,15 @@ class ZDFBaseIE(InfoExtractor):
                     if not tracks:
                         continue
                     for track in tracks:
-                        self._extract_format(
+                        if self._extract_format(
                             content_id, formats, track_uris, {
                                 'url': track.get('uri'),
                                 'type': f.get('type'),
                                 'mimeType': f.get('mimeType'),
                                 'quality': quality.get('quality'),
                                 'language': track.get('language'),
-                            })
+                            }):
+                            is_live=True
         self._sort_formats(formats)
 
         duration = float_or_none(try_get(
@@ -119,6 +123,7 @@ class ZDFBaseIE(InfoExtractor):
             'duration': duration,
             'formats': formats,
             'subtitles': self._extract_subtitles(ptmd),
+            'is_live': is_live,
         }
 
     def _extract_player(self, webpage, video_id, fatal=True):

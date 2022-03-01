@@ -127,8 +127,9 @@ class TurnerBaseIE(AdobePassIE):
                     'url': video_url,
                 })
             elif ext == 'smil':
-                formats.extend(self._extract_smil_formats(
-                    video_url, video_id, fatal=False))
+                live, formatsbis = self._extract_smil_live_and_formats(
+                    video_url, video_id, fatal=False)
+                formats.extend(formatsbis)
             elif re.match(r'https?://[^/]+\.akamaihd\.net/[iz]/', video_url):
                 formats.extend(self._extract_akamai_formats(
                     video_url, video_id, {

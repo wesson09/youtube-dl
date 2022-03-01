@@ -35,7 +35,7 @@ class CBSBaseIE(ThePlatformFeedIE):
         last_e = None
         for asset_type, query in asset_types.items():
             try:
-                tp_formats, tp_subtitles = self._extract_theplatform_smil(
+                is_live, tp_formats, tp_subtitles = self._extract_theplatform_smil(
                     update_url_query(tp_release_url, query), content_id,
                     'Downloading %s SMIL data' % asset_type)
             except ExtractorError as e:
@@ -44,7 +44,7 @@ class CBSBaseIE(ThePlatformFeedIE):
                     continue
                 query['formats'] = ''  # blank query to check if expired
             try:
-                tp_formats, tp_subtitles = self._extract_theplatform_smil(
+                is_live, tp_formats, tp_subtitles = self._extract_theplatform_smil(
                     update_url_query(tp_release_url, query), content_id,
                     'Downloading %s SMIL data, trying again with another format' % asset_type)
             except ExtractorError as e:

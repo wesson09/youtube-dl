@@ -33,6 +33,7 @@ class TheWeatherChannelIE(ThePlatformIE):
     }]
 
     def _real_extract(self, url):
+        is_live =False
         asset_name, locale, display_id = re.match(self._VALID_URL, url).groups()
         if not locale:
             locale = 'en-US'
@@ -69,7 +70,7 @@ class TheWeatherChannelIE(ThePlatformIE):
                     'id': variant_id,
                 })
             elif ThePlatformIE.suitable(variant_url):
-                tp_formats, _ = self._extract_theplatform_smil(variant_url, video_id)
+                is_live, tp_formats, _ = self._extract_theplatform_smil(variant_url, video_id)
                 formats.extend(tp_formats)
             elif ext == 'm3u8':
                 formats.extend(self._extract_m3u8_formats(
@@ -99,4 +100,5 @@ class TheWeatherChannelIE(ThePlatformIE):
             'subtitles': {locale[:2]: [{'url': cc_url}]} if cc_url else None,
             'thumbnails': thumbnails,
             'formats': formats,
+            'is_live': is_live
         }

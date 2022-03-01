@@ -133,12 +133,14 @@ class ArkenaIE(InfoExtractor):
                     elif rendition_type == 'index':
                         mime_type = link.get('mimeType')
                         if mime_type == 'application/smil+xml':
-                            formats.extend(self._extract_smil_formats(
-                                href, video_id, fatal=False))
+                            live, formatbis = self._extract_smil_live_and_formats(
+                                href, video_id, fatal=False)
+                            formats.extend(formatbis)
                         elif mime_type == 'application/x-mpegURL':
-                            formats.extend(self._extract_m3u8_formats(
+                            live, formatbis = self._extract_m3u8_live_and_formats(
                                 href, video_id, 'mp4', 'm3u8_native',
-                                m3u8_id='hls', fatal=False))
+                                m3u8_id='hls', fatal=False)
+                            formats.extend(formatbis)
                         elif mime_type == 'application/hds+xml':
                             formats.extend(self._extract_f4m_formats(
                                 href, video_id, f4m_id='hds', fatal=False))

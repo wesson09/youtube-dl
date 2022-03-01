@@ -63,6 +63,7 @@ class LivestreamIE(InfoExtractor):
     _API_URL_TEMPLATE = 'http://livestream.com/api/accounts/%s/events/%s'
 
     def _parse_smil_formats(self, smil, smil_url, video_id, namespace=None, f4m_params=None, transform_rtmp_url=None):
+        is_live = False#TODO
         base_ele = find_xpath_attr(
             smil, self._xpath_ns('.//meta', namespace), 'name', 'httpBase')
         base = base_ele.get('content') if base_ele is not None else 'http://livestreamvod-f.akamaihd.net/'
@@ -86,7 +87,7 @@ class LivestreamIE(InfoExtractor):
                 'tbr': tbr,
                 'preference': -1000,
             })
-        return formats
+        return is_live,formats
 
     def _extract_video_info(self, video_data):
         video_id = compat_str(video_data['id'])
@@ -114,7 +115,10 @@ class LivestreamIE(InfoExtractor):
 
         smil_url = video_data.get('smil_url')
         if smil_url:
-            formats.extend(self._extract_smil_formats(smil_url, video_id, fatal=False))
+            live, formatbis = self._extract_smil_live_and_formats(smil_url, video_id, fatal=False)
+            if live:
+                is_live = True
+            formats.extend(formatbis)
 
         m3u8_url = video_data.get('m3u8_url')
         if m3u8_url:
@@ -148,6 +152,7 @@ class LivestreamIE(InfoExtractor):
             'comment_count': video_data.get('comments', {}).get('total'),
             'view_count': video_data.get('views'),
             'comments': comments,
+            'is_live': is_live,
         }
 
     def _extract_stream_info(self, stream_info):
@@ -157,13 +162,19 @@ class LivestreamIE(InfoExtractor):
         formats = []
         smil_url = stream_info.get('play_url')
         if smil_url:
-            formats.extend(self._extract_smil_formats(smil_url, broadcast_id))
+            live, formatbis = self._extract_smil_live_and_formats(smil_url, broadcast_id)
+            if live:
+                is_live = True
+            formats.extend(formatbis)
 
         m3u8_url = stream_info.get('m3u8_url')
         if m3u8_url:
-            formats.extend(self._extract_m3u8_formats(
+            live, formatbis = self._extract_m3u8_live_and_formats(
                 m3u8_url, broadcast_id, 'mp4', 'm3u8_native',
-                m3u8_id='hls', fatal=False))
+                m3u8_id='hls', fatal=False)
+            if live:
+                is_live = True
+            formats.extend(formatbis)
 
         rtsp_url = stream_info.get('rtsp_url')
         if rtsp_url:

@@ -132,8 +132,9 @@ class ESPNIE(OnceIE):
             if OnceIE.suitable(source_url):
                 formats.extend(self._extract_once_formats(source_url))
             elif ext == 'smil':
-                formats.extend(self._extract_smil_formats(
-                    source_url, video_id, fatal=False))
+                live, formatbis = self._extract_smil_live_and_formats(
+                    source_url, video_id, fatal=False)
+                formats.extend(formatbis)
             elif ext == 'f4m':
                 formats.extend(self._extract_f4m_formats(
                     source_url, video_id, f4m_id=source_id, fatal=False))

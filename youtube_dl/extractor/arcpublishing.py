@@ -110,7 +110,7 @@ class ArcPublishingIE(InfoExtractor):
             urls.append(s_url)
             stream_type = s.get('stream_type')
             if stream_type == 'smil':
-                smil_formats = self._extract_smil_formats(
+                live, smil_formats = self._extract_smil_live_and_formats(
                     s_url, uuid, fatal=False)
                 for f in smil_formats:
                     if f['url'].endswith('/cfx/st'):

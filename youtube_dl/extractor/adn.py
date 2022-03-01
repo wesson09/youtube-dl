@@ -226,6 +226,7 @@ Format: Marked,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text'''
         title = metas['title']
 
         formats = []
+        is_live = False
         for format_id, qualities in (links.get('streaming') or {}).items():
             if not isinstance(qualities, dict):
                 continue
@@ -237,9 +238,11 @@ Format: Marked,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text'''
                 m3u8_url = load_balancer_data.get('location')
                 if not m3u8_url:
                     continue
-                m3u8_formats = self._extract_m3u8_formats(
+                live, m3u8_formats = self._extract_m3u8_live_and_formats(
                     m3u8_url, video_id, 'mp4', 'm3u8_native',
                     m3u8_id=format_id, fatal=False)
+                if live:
+                    is_live = True
                 if format_id == 'vf':
                     for f in m3u8_formats:
                         f['language'] = 'fr'
@@ -266,4 +269,5 @@ Format: Marked,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text'''
             'release_date': unified_strdate(video.get('releaseDate')),
             'average_rating': float_or_none(video.get('rating') or metas.get('rating')),
             'comment_count': int_or_none(video.get('commentsCount')),
+            'is_live': is_live,
         }

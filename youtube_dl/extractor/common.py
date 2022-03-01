@@ -1835,7 +1835,7 @@ class InfoExtractor(object):
                     format_id.append(stream_name if stream_name else '%d' % (tbr if tbr else len(formats)))
                 manifest_url = format_url(line.strip())
 
-                sublive,sub = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4')
+                sublive,sub = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4',fatal=False)
                 if sublive:
                     live=True;
 
@@ -2283,7 +2283,7 @@ class InfoExtractor(object):
                 try:
                     schemeIdUri = p.get('schemeIdUri')
                     if schemeIdUri is not None and schemeIdUri.startswith('urn:uuid'):
-                        drmid = schemeIdUri[9:]
+                        drmid = schemeIdUri[9:].lower()
                         try:
                           drmmsg = drmmsg + ' '+DRMIdentifiers[drmid];
                         except:
@@ -2701,11 +2701,11 @@ class InfoExtractor(object):
             ext = type_info.get('ext') or determine_ext(full_url)
             if ext == 'm3u8':
                 is_plain_url = False
+            elif ext == 'mpd':
                 formats = self._extract_m3u8_formats(
                     full_url, video_id, ext='mp4',
                     entry_protocol=m3u8_entry_protocol, m3u8_id=m3u8_id,
                     preference=preference, fatal=False)
-            elif ext == 'mpd':
                 is_plain_url = False
                 formats = self._extract_mpd_formats(
                     full_url, video_id, mpd_id=mpd_id, fatal=False)
@@ -2722,7 +2722,7 @@ class InfoExtractor(object):
         # so we wll include them right here (see
         # https://www.ampproject.org/docs/reference/components/amp-video)
         # For dl8-* tags see https://delight-vr.com/documentation/dl8-video/
-        _MEDIA_TAG_NAME_RE = r'(?:(?:amp|dl8(?:-live)?)-)?(video|audio)'
+        _MEDIA_TAG_NAME_RE = r'(?:(?:amp|dl8(?:-live)?)-)?(video|audio|video-js)'
         media_tags = [(media_tag, media_tag_name, media_type, '')
                       for media_tag, media_tag_name, media_type
                       in re.findall(r'(?s)(<(%s)[^>]*>)' % _MEDIA_TAG_NAME_RE, webpage)]
