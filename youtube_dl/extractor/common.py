@@ -1738,7 +1738,9 @@ class InfoExtractor(object):
                     whichone = line.split(';');
                     #print(whichone)  # ??? to do seek url
                     path=whichone[len(whichone) - 1];
-                    fragments.append({'url':format_url(path)})
+                    if path != '':
+                        fragments.append({'url':format_url(path)})
+
             return format_note=='live_blacklist', [{
                 'url': m3u8_url,
                 'format_id': m3u8_id,
