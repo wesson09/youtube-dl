@@ -9,7 +9,8 @@ from .utils import (
     remove_quotes,
 )
 from .compat import (
-    compat_collections_abc
+    compat_collections_abc,
+    compat_str,
 )
 MutableMapping = compat_collections_abc.MutableMapping
 
@@ -34,6 +35,52 @@ _ASSIGN_OPERATORS = [(op + '=', opfunc) for op, opfunc in _OPERATORS]
 _ASSIGN_OPERATORS.append(('=', (lambda cur, right: right)))
 
 _NAME_RE = r'[a-zA-Z_$][a-zA-Z_$0-9]*'
+
+_MATCHING_PARENS = dict(zip(*zip('()', '{}', '[]')))
+
+
+class JS_Break(ExtractorError):
+    def __init__(self):
+        ExtractorError.__init__(self, 'Invalid break')
+
+
+class JS_Continue(ExtractorError):
+    def __init__(self):
+        ExtractorError.__init__(self, 'Invalid continue')
+
+
+class LocalNameSpace(MutableMapping):
+    def __init__(self, *stack):
+        self.stack = tuple(stack)
+
+    def __getitem__(self, key):
+        for scope in self.stack:
+            if key in scope:
+                return scope[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        for scope in self.stack:
+            if key in scope:
+                scope[key] = value
+                break
+        else:
+            self.stack[0][key] = value
+        return value
+
+    def __delitem__(self, key):
+        raise NotImplementedError('Deleting is not supported')
+
+    def __iter__(self):
+        for scope in self.stack:
+            for scope_item in iter(scope):
+                yield scope_item
+
+    def __len__(self, key):
+        return len(iter(self))
+
+    def __repr__(self):
+        return 'LocalNameSpace%s' % (self.stack, )
 
 
 class JS_Break(ExtractorError):
@@ -99,26 +146,24 @@ class JSInterpreter(object):
     def _separate(expr, delim=',', max_split=None):
         if not expr:
             return
-        parens = {'(': 0, '{': 0, '[': 0, ']': 0, '}': 0, ')': 0}
-        start, splits, pos, max_pos = 0, 0, 0, len(delim) - 1
+        counters = {k: 0 for k in _MATCHING_PARENS.values()}
+        start, splits, pos, delim_len = 0, 0, 0, len(delim) - 1
         for idx, char in enumerate(expr):
-            if char in parens:
-                parens[char] += 1
-            is_in_parens = (parens['['] - parens[']']
-                            or parens['('] - parens[')']
-                            or parens['{'] - parens['}'])
-            if char == delim[pos] and not is_in_parens:
-                if pos == max_pos:
-                    pos = 0
-                    yield expr[start: idx - max_pos]
-                    start = idx + 1
-                    splits += 1
-                    if max_split and splits >= max_split:
-                        break
-                else:
-                    pos += 1
-            else:
+            if char in _MATCHING_PARENS:
+                counters[_MATCHING_PARENS[char]] += 1
+            elif char in counters:
+                counters[char] -= 1
+            if char != delim[pos] or any(counters.values()):
                 pos = 0
+                continue
+            elif pos != delim_len:
+                pos += 1
+                continue
+            yield expr[start: idx - delim_len]
+            start, pos = idx + 1, 0
+            splits += 1
+            if max_split and splits >= max_split:
+                break
         yield expr[start:]
 
     @staticmethod
@@ -372,7 +417,7 @@ class JSInterpreter(object):
                 # nonlocal member
                 member = nl.member
                 if variable == 'String':
-                    obj = str
+                    obj = compat_str
                 elif variable in local_vars:
                     obj = local_vars[variable]
                 else:
@@ -391,7 +436,7 @@ class JSInterpreter(object):
                     self.interpret_expression(v, local_vars, allow_recursion)
                     for v in self._separate(arg_str)]
 
-                if obj == str:
+                if obj == compat_str:
                     if member == 'fromCharCode':
                         assertion(argvals, 'takes one or more arguments')
                         return ''.join(map(chr, argvals))
@@ -416,7 +461,7 @@ class JSInterpreter(object):
                 elif member == 'splice':
                     assertion(isinstance(obj, list), 'must be applied on a list')
                     assertion(argvals, 'takes one or more arguments')
-                    index, howMany = (argvals + [len(obj)])[:2]
+                    index, howMany = map(int, (argvals + [len(obj)])[:2])
                     if index < 0:
                         index += len(obj)
                     add_items = argvals[2:]
@@ -533,7 +578,7 @@ class JSInterpreter(object):
             name = self._named_object(
                 local_vars,
                 self.extract_function_from_code(
-                    [str.strip(x) for x in mobj.group('args').split(',')],
+                    [x.strip() for x in mobj.group('args').split(',')],
                     body, local_vars, *global_stack))
             code = code[:start] + name + remaining
         return self.build_function(argnames, code, local_vars, *global_stack)
