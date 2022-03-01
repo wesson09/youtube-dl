@@ -62,17 +62,19 @@ class WDRIE(InfoExtractor):
 
                 ext = determine_ext(medium_url)
                 if ext == 'm3u8':
-                    formats.extend(self._extract_m3u8_formats(
+                    live, formatbis=self._extract_m3u8_live_and_formats(
                         medium_url, video_id, 'mp4', 'm3u8_native',
-                        m3u8_id='hls'))
+                        m3u8_id='hls')
+                    formats.extend(formatbis)
                 elif ext == 'f4m':
                     manifest_url = update_url_query(
                         medium_url, {'hdcore': '3.2.0', 'plugin': 'aasp-3.2.0.77.18'})
                     formats.extend(self._extract_f4m_formats(
                         manifest_url, video_id, f4m_id='hds', fatal=False))
                 elif ext == 'smil':
-                    formats.extend(self._extract_smil_formats(
-                        medium_url, 'stream', fatal=False))
+                    live, formatbis = self._extract_smil_live_and_formats(
+                        medium_url, 'stream', fatal=False)
+                    formats.extend(formatbis)
                 else:
                     a_format = {
                         'url': medium_url
@@ -260,6 +262,8 @@ class WDRPageIE(InfoExtractor):
             jsonp_url = try_get(
                 media_link_obj, lambda x: x['mediaObj']['url'], compat_str)
             if jsonp_url:
+                extracjs= WDRIE(self._downloader);
+                return extracjs.extract(jsonp_url) #return only first entry: avoid potential live in playlist
                 entries.append(self.url_result(jsonp_url, ie=WDRIE.ie_key()))
 
         # Playlist (e.g. https://www1.wdr.de/mediathek/video/sendungen/aktuelle-stunde/aktuelle-stunde-120.html)
