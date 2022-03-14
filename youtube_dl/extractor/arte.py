@@ -18,18 +18,44 @@ from ..utils import (
     url_or_none,
 )
 
-
 class ArteTVBaseIE(InfoExtractor):
     _ARTE_LANGUAGES = 'fr|de|en|es|it|pl'
     _API_BASE = 'https://api.arte.tv/api/player/v1'
 
-
+# no multiple audio stream for live : 2 differents vods fr and de
+# class ArteTVLiveIE(ArteTVBaseIE):
+#     _VALID_URL = r'''https:\/\/www\.arte\.tv\/(?P<lang>%(langs)s)/direct''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
+#     _LANG_URLS={
+#         'fr':'https://artesimulcast.akamaized.net/hls/live/2031003/artelive_fr/index.m3u8',
+#         'de':'https://artesimulcast.akamaized.net/hls/live/2030993/artelive_de/index.m3u8'
+#     }
+#     def _real_extract(self, url):
+#         video_id='ARTE LIVE'
+#         mobj = re.match(self._VALID_URL, url)
+#         lang = mobj.group('lang') or mobj.group('lang_2')
+#
+#         live,formats = self._extract_m3u8_live_and_formats(self._LANG_URLS[lang],video_id)
+#         self._sort_formats(formats)
+#
+#         return {
+#             'id': video_id,
+#             'title': video_id,
+#             'is_live':True,
+#             'formats': formats,
+#         }
 class ArteTVIE(ArteTVBaseIE):
+    # _VALID_URL = r'''(?x)
+    #                 https?://
+    #                     (?:
+    #                         (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos|
+    #                         api\.arte\.tv/api/player/v\d+/config/(?P<lang_2>%(langs)s)
+    #                     )
+    #                     /(?P<id>\d{6}-\d{3}-[AF])
+    #                 ''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
     _VALID_URL = r'''(?x)
                     https?://
                         (?:
-                            (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos|
-                            api\.arte\.tv/api/player/v\d+/config/(?P<lang_2>%(langs)s)
+                            (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos
                         )
                         /(?P<id>\d{6}-\d{3}-[AF])
                     ''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
@@ -52,7 +78,7 @@ class ArteTVIE(ArteTVBaseIE):
     def _real_extract(self, url):
         mobj = re.match(self._VALID_URL, url)
         video_id = mobj.group('id')
-        lang = mobj.group('lang') or mobj.group('lang_2')
+        lang = mobj.group('lang')# or mobj.group('lang_2')
 
         info = self._download_json(
             '%s/config/%s/%s' % (self._API_BASE, lang, video_id), video_id)
@@ -87,8 +113,17 @@ class ArteTVIE(ArteTVBaseIE):
             'it': 'E[ITA]',
             'pl': 'E[POL]',
         }
+        TRADS =[
+            'fr-FR',
+            'de-DE',
+            'en-US',
+            'es-ES',
+            'it-IT',
+            'pl-PL',
+        ]
 
         langcode = LANGS.get(lang, lang)
+        langind = 0
 
         formats = []
         for format_id, format_dict in vsr.items():
@@ -135,9 +170,34 @@ class ArteTVIE(ArteTVBaseIE):
             for pref, p in enumerate(PREFERENCES):
                 if re.match(p, versionCode):
                     lang_pref = len(PREFERENCES) - pref
-                    break
             else:
                 lang_pref = -1
+
+
+            #overriding buggy language determination
+            langf='undefined'
+            subtitlef='undefined'
+
+            i=0
+            for i,la in enumerate(LANGS):
+                    trad=LANGS[la]
+                    #VOX or VX
+                    startseek=1
+                    if versionCode[1]=='O':
+                      startseek=2 #means langf detection is the original language...
+
+                    found=versionCode[startseek:].find(trad)
+                    if found == 0:
+                        langf = TRADS[i]
+                        found2=versionCode[startseek+found+1:].find(trad)
+                        if found2>0:
+                           if versionCode[startseek + found +found2]=='M':
+                               subtitlef = TRADS[i]+',SUBFORCED'
+                    else:
+                      if found!=-1:
+                        subtitlef = TRADS[i]
+
+
 
             media_type = f.get('mediaType')
             if media_type == 'hls':
@@ -146,6 +206,10 @@ class ArteTVIE(ArteTVBaseIE):
                     m3u8_id=format_id, fatal=False)
                 for m3u8_format in m3u8_formats:
                     m3u8_format['language_preference'] = lang_pref
+                    m3u8_format['lang'] = langf
+                    m3u8_format['subtitle'] = subtitlef
+                if m3u8_format[  'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
+                    i = 0;
                 formats.extend(m3u8_formats)
                 continue
 
@@ -153,6 +217,8 @@ class ArteTVIE(ArteTVBaseIE):
                 'format_id': format_id,
                 'preference': -10 if f.get('videoFormat') == 'M3U8' else None,
                 'language_preference': lang_pref,
+                'lang': langf,
+                'subtitle':subtitlef,
                 'format_note': '%s, %s' % (f.get('versionCode'), f.get('versionLibelle')),
                 'width': int_or_none(f.get('width')),
                 'height': int_or_none(f.get('height')),
