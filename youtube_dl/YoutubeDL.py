@@ -95,7 +95,7 @@ from .utils import (
     YoutubeDLRedirectHandler,
 )
 from .cache import Cache
-from .extractor import get_info_extractor, gen_extractor_classes, _LAZY_LOADER
+from .extractor import get_info_extractor, gen_extractor_classes#, _LAZY_LOADER
 from .extractor.openload import PhantomJSwrapper
 from .downloader import get_suitable_downloader
 from .downloader.rtmp import rtmpdump_version
@@ -930,7 +930,12 @@ class YoutubeDL(object):
             self._playlist_level += 1
             self._playlist_urls.add(webpage_url)
             try:
-                return self.__process_playlist(ie_result, download)
+                ret = self.__process_playlist(ie_result, download)
+                if len(ret['entries']) == 0:
+                    raise ExtractorError('Empty Playlist')
+                if len(ret['entries']) == 1:
+                    return ret['entries'][0]
+                return ret
             finally:
                 self._playlist_level -= 1
                 if not self._playlist_level:
@@ -1348,6 +1353,8 @@ class YoutubeDL(object):
                         matches = list(filter(filter_f, formats))
                         if matches:
                             yield matches[-1]
+                        else:
+                            yield formats[0]
             elif selector.type == MERGE:
                 def _merge(formats_info):
                     format_1, format_2 = [f['format_id'] for f in formats_info]
