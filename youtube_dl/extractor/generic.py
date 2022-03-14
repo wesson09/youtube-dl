@@ -3583,13 +3583,13 @@ class GenericIE(InfoExtractor):
 
             ext = determine_ext(video_url)
             if ext == 'smil':
-                live, entry_info_dict['formats'] = self._extract_smil_live_and_formats(video_url, video_id)
+                entry_info_dict['is_live'], entry_info_dict['formats'] = self._extract_smil_live_and_formats(video_url, video_id)
             elif ext == 'xspf':
                 return self.playlist_result(self._extract_xspf_playlist(video_url, video_id), video_id)
             elif ext == 'm3u8':
-                entry_info_dict['formats'] = self._extract_m3u8_formats(video_url, video_id, ext='mp4')
+                entry_info_dict['is_live'], entry_info_dict['formats'] = self._extract_m3u8_live_and_formats(video_url, video_id, ext='mp4')
             elif ext == 'mpd':
-                entry_info_dict['formats'] = self._extract_mpd_formats(video_url, video_id)
+                entry_info_dict['is_live'], entry_info_dict['formats'] = self._extract_mpd_live_and_formats(video_url, video_id)
             elif ext == 'f4m':
                 entry_info_dict['formats'] = self._extract_f4m_formats(video_url, video_id)
             elif re.search(r'(?i)\.(?:ism|smil)/manifest', video_url) and video_url != url:
