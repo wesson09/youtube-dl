@@ -445,11 +445,12 @@ class FFmpegFD(ExternalFD):
         ffpp.check_version()
 
         args = [ffpp.executable, '-y']
+        #args += ['-loglevel', 'quiet']
 
-        for log_level in ('quiet', 'verbose'):
-            if self.params.get(log_level, False):
-                args += ['-loglevel', log_level]
-                break
+        # for log_level in ('quiet', 'verbose'):
+        #     if self.params.get(log_level, False):
+        #         args += ['-loglevel', log_level]
+        #         break
 
         seekable = info_dict.get('_seekable')
         if seekable is not None:
