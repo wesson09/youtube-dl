@@ -1886,6 +1886,17 @@ class InfoExtractor(object):
                         # TODO: update acodec for audio only formats with
                         # the same GROUP-ID
                         f['acodec'] = 'none'
+
+
+                #update extension according codecs
+                if f.get('vcodec') != 'none':
+                    #FORCE EXTENSION  if f['vcodec'].find('av')==0:
+                        f['ext']='mp4'
+                else:
+                    if f['acodec'].find('mp4a')==0:
+                        f['ext']='aac'
+                    else:
+                        f['ext']='mp3' #FORCE EXTENSION
                 formats.append(f)
 
                 # for DailyMotion
@@ -2744,6 +2755,7 @@ class InfoExtractor(object):
             if src:
                 _, formats = _media_formats(src, media_type)
                 media_info['formats'].extend(formats)
+                media_info['url'] = formats[0]['url'];
             media_info['thumbnail'] = absolute_url(media_attributes.get('poster'))
             if media_content:
                 for source_tag in re.findall(r'<source[^>]+>', media_content):
@@ -2786,7 +2798,12 @@ class InfoExtractor(object):
                             'format_id': s_attr.get('label') or s_attr.get('title'),
                         })
                         f.update(formats[0])
-                        media_info['formats'].append(f)
+                        dup=False
+                        for forma in media_info['formats'] :
+                           if forma['url']==f['url']:
+                               dup=True
+                        if not dup:
+                            media_info['formats'].append(f)
                     else:
                         media_info['formats'].extend(formats)
                 for track_tag in re.findall(r'<track[^>]+>', media_content):
@@ -2803,7 +2820,13 @@ class InfoExtractor(object):
             for f in media_info['formats']:
                 f.setdefault('http_headers', {})['Referer'] = base_url
             if media_info['formats'] or media_info['subtitles']:
-                entries.append(media_info)
+                dup = False
+                if media_info.get('url'):#TODEBUG video with multiples sources can't have url
+                    for en in entries:
+                        if en['url'] == media_info['url']:
+                            dup = True
+                    if not dup:
+                        entries.append(media_info)
         return entries
 
     def _extract_akamai_formats(self, manifest_url, video_id, hosts={}):
