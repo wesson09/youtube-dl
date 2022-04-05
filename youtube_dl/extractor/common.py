@@ -2712,15 +2712,16 @@ class InfoExtractor(object):
         def _media_formats(src, cur_media_type, type_info={}):
             full_url = absolute_url(src)
             ext = type_info.get('ext') or determine_ext(full_url)
+            live=False;
             if ext == 'm3u8':
                 is_plain_url = False
-            elif ext == 'mpd':
-                formats = self._extract_m3u8_formats(
+                live,formats = self._extract_m3u8_live_and_formats(
                     full_url, video_id, ext='mp4',
                     entry_protocol=m3u8_entry_protocol, m3u8_id=m3u8_id,
                     preference=preference, fatal=False)
+            elif ext == 'mpd':
                 is_plain_url = False
-                formats = self._extract_mpd_formats(
+                live, formats = self._extract_mpd_live_and_formats(
                     full_url, video_id, mpd_id=mpd_id, fatal=False)
             else:
                 is_plain_url = True
@@ -2728,7 +2729,7 @@ class InfoExtractor(object):
                     'url': full_url,
                     'vcodec': 'none' if cur_media_type == 'audio' else None,
                 }]
-            return is_plain_url, formats
+            return live, is_plain_url, formats
 
         entries = []
         # amp-video and amp-audio are very similar to their HTML5 counterparts
@@ -2745,6 +2746,7 @@ class InfoExtractor(object):
             # https://github.com/ytdl-org/youtube-dl/issues/11979, example URL:
             # http://www.porntrex.com/maps/videositemap.xml).
             r'(?s)(<(?P<tag>%s)(?:\s+[^>]*)?>)(.*?)</(?P=tag)>' % _MEDIA_TAG_NAME_RE, webpage))
+
         for media_tag, _, media_type, media_content in media_tags:
             media_info = {
                 'formats': [],
@@ -2753,7 +2755,9 @@ class InfoExtractor(object):
             media_attributes = extract_attributes(media_tag)
             src = strip_or_none(media_attributes.get('src'))
             if src:
-                _, formats = _media_formats(src, media_type)
+                _, islive, formats = _media_formats(src, media_type)
+                if islive:
+                    media_info['is_live']=True
                 media_info['formats'].extend(formats)
                 media_info['url'] = formats[0]['url'];
             media_info['thumbnail'] = absolute_url(media_attributes.get('poster'))
@@ -2766,7 +2770,9 @@ class InfoExtractor(object):
                     if not src:
                         continue
                     f = parse_content_type(s_attr.get('type'))
-                    is_plain_url, formats = _media_formats(src, media_type, f)
+                    is_plain_url,islive, formats = _media_formats(src, media_type, f)
+                    if islive:
+                        media_info['is_live']=True
                     if is_plain_url:
                         # width, height, res, label and title attributes are
                         # all not standard but seen several times in the wild
@@ -2827,6 +2833,9 @@ class InfoExtractor(object):
                             dup = True
                     if not dup:
                         entries.append(media_info)
+                else:
+                    entries.append(media_info)
+
         return entries
 
     def _extract_akamai_formats(self, manifest_url, video_id, hosts={}):
