@@ -29,6 +29,7 @@ from ..compat import (
 )
 from ..jsinterp import JSInterpreter
 from ..utils import (
+    std_headers,
     bug_reports_message,
     bytes_to_intlist,
     clean_html,
@@ -350,8 +351,10 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
 
     def _initialize_consent(self):
         cookies = self._get_cookies('https://www.youtube.com/')
+
         if cookies.get('__Secure-3PSID'):
             return
+
         consent_id = None
         consent = cookies.get('CONSENT')
         if consent:
@@ -364,7 +367,7 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
         self._set_cookie('.youtube.com', 'CONSENT', 'YES+cb.20210328-17-p0.en+FX+%s' % consent_id)
 
     def _real_initialize(self):
-        self._initialize_consent()
+        #self._initialize_consent()
         self._login()
 
     _YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;'
@@ -419,7 +422,18 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
 
     def _generate_sapisidhash_header(self, origin='https://www.youtube.com'):
         time_now = round(time.time())
+        if std_headers.get('Cookie'):
+                heads=std_headers['Cookie'].split(';')#todo parse better
+                headdict={}
+                for h in heads:
+                    s=h.find('=');
+                    headdict[ h[0:s].strip()]=h[s+1:]
+                if headdict.get('__Secure-3PAPISID') :
+                    self._SAPISID=headdict['__Secure-3PAPISID']
         if self._SAPISID is None:
+
+
+
             yt_cookies = self._get_cookies('https://www.youtube.com')
             # Sometimes SAPISID cookie isn't present but __Secure-3PAPISID is.
             # See: https://github.com/yt-dlp/yt-dlp/issues/393
@@ -446,6 +460,7 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
                   note='Downloading API JSON', errnote='Unable to download API page',
                   context=None, api_key=None, api_hostname=None, default_client='web'):
 
+        #default_client='web'
         data = {'context': context} if context else {'context': self._extract_context(default_client=default_client)}
         data.update(query)
         real_headers = self.generate_api_headers(default_client=default_client)
@@ -676,12 +691,15 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
         last_error = None
         count = -1
         retries = 3; # self.get_param('extractor_retries', 3)
+        if std_headers.get('Cookie'):
+            headers['Cookie']= std_headers['Cookie']
         if check_get_keys is None:
             check_get_keys = []
         while count < retries:
             count += 1
             if last_error:
                 self.report_warning('%s. Retrying ...' % remove_end(last_error, '.'))
+
             try:
                 response = self._call_api(
                     ep=ep, fatal=True, headers=headers,
@@ -2641,7 +2659,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         webpage = None
         if True:#'webpage' not in self._configuration_arg('player_skip'):
             webpage = self._download_webpage(
-                webpage_url + '&bpctr=9999999999&has_verified=1', video_id, fatal=False)
+                webpage_url + '&bpctr=9999999999&has_verified=1', video_id,headers=std_headers,fatal=False)
 
         master_ytcfg = self.extract_ytcfg(video_id, webpage) or self._get_default_ytcfg()
 
