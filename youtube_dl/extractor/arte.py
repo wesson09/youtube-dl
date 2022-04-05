@@ -202,18 +202,19 @@ class ArteTVIE(ArteTVBaseIE):
             media_type = f.get('mediaType')
             if media_type == 'hls':
                 m3u8_formats = self._extract_m3u8_formats(
-                    format_url, video_id, 'mp4', entry_protocol='m3u8_native',
+                    format_url, video_id, 'mp4', # entry_protocol='m3u8_native',
                     m3u8_id=format_id, fatal=False)
                 for m3u8_format in m3u8_formats:
                     m3u8_format['language_preference'] = lang_pref
                     m3u8_format['lang'] = langf
                     m3u8_format['subtitle'] = subtitlef
-                if m3u8_format[  'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
-                    i = 0;
+                    # if m3u8_format[ 'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
+                    #   i = 0;
                 formats.extend(m3u8_formats)
                 continue
 
             format = {
+                'title': title,
                 'format_id': format_id,
                 'preference': -10 if f.get('videoFormat') == 'M3U8' else None,
                 'language_preference': lang_pref,
