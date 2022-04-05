@@ -225,7 +225,7 @@ class FFmpegPostProcessor(PostProcessor):
                 + [encodeArgument(o) for o in opts]
                 + [encodeFilename(self._ffmpeg_filename_argument(out_path), True)])
 
-        if self._downloader.params.get('verbose', False):
+        if True:#self._downloader.params.get('verbose', False):
             self._downloader.to_screen('[debug] ffmpeg command line: %s' % shell_quote(cmd))
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         stdout, stderr = p.communicate()
