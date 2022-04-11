@@ -552,10 +552,19 @@ class VimeoIE(VimeoBaseInfoExtractor):
     def _extract_urls(url, webpage):
         urls = []
         # Look for embedded (iframe) Vimeo player
-        for mobj in re.finditer(
+        finder = re.finditer(
                 r'<iframe[^>]+?src=(["\'])(?P<url>(?:https?:)?//player\.vimeo\.com/video/\d+.*?)\1',
-                webpage):
+                webpage)
+        for mobj in finder:
             urls.append(VimeoIE._smuggle_referrer(unescapeHTML(mobj.group('url')), url))
+
+
+        finder = re.finditer(
+                r'<a[^>]+?href=(["\'])(?:https?:)?//vimeo\.com/(?P<id>\d+.*?)\1',
+                webpage)
+        for mobj in finder:
+            urls.append(VimeoIE._smuggle_referrer('http://player.vimeo.com/video/'+unescapeHTML(mobj.group('id')), url))
+
         PLAIN_EMBED_RE = (
             # Look for embedded (swf embed) Vimeo player
             r'<embed[^>]+?src=(["\'])(?P<url>(?:https?:)?//(?:www\.)?vimeo\.com/moogaloop\.swf.+?)\1',
@@ -626,8 +635,8 @@ class VimeoIE(VimeoBaseInfoExtractor):
         headers = std_headers.copy()
         if 'http_headers' in data:
             headers.update(data['http_headers'])
-        if 'Referer' not in headers:
-            headers['Referer'] = url
+        # if 'Referer' not in headers:
+        #     headers['Referer'] = url
 
         mobj = re.match(self._VALID_URL, url).groupdict()
         video_id, unlisted_hash = mobj['id'], mobj.get('unlisted_hash')
@@ -1157,6 +1166,12 @@ class VHXEmbedIE(VimeoBaseInfoExtractor):
     def _extract_url(webpage):
         mobj = re.search(
             r'<iframe[^>]+src="(https?://embed\.vhx\.tv/videos/\d+[^"]*)"', webpage)
+        # if mobj is None:
+        #     mobj = re.search(
+        #         r'<a[^>]+href="https?://vimeo\.com/(\d+[^"]*)"', webpage)
+        #     return 'https://embed.vhx.tv/videos/'+unescapeHTML(mobj.group(1)) if mobj else None
+            #hack
+
         return unescapeHTML(mobj.group(1)) if mobj else None
 
     def _real_extract(self, url):
