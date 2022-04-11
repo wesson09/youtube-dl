@@ -20,7 +20,7 @@ from ..utils import (
 
 class ArteTVBaseIE(InfoExtractor):
     _ARTE_LANGUAGES = 'fr|de|en|es|it|pl'
-    _API_BASE = 'https://api.arte.tv/api/player/v1'
+    _API_BASE = 'https://api.arte.tv/api/player/%s'
 
 # no multiple audio stream for live : 2 differents vods fr and de
 # class ArteTVLiveIE(ArteTVBaseIE):
@@ -44,21 +44,21 @@ class ArteTVBaseIE(InfoExtractor):
 #             'formats': formats,
 #         }
 class ArteTVIE(ArteTVBaseIE):
-    # _VALID_URL = r'''(?x)
-    #                 https?://
-    #                     (?:
-    #                         (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos|
-    #                         api\.arte\.tv/api/player/v\d+/config/(?P<lang_2>%(langs)s)
-    #                     )
-    #                     /(?P<id>\d{6}-\d{3}-[AF])
-    #                 ''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
     _VALID_URL = r'''(?x)
                     https?://
                         (?:
-                            (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos
+                            (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos|
+                            api\.arte\.tv/api/player/(?P<API_VERSION>v\d+)/config/(?P<lang_2>%(langs)s)
                         )
                         /(?P<id>\d{6}-\d{3}-[AF])
                     ''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
+    # _VALID_URL = r'''(?x)
+    #                 https?://
+    #                     (?:
+    #                         (?:www\.)?arte\.tv/(?P<lang>%(langs)s)/videos
+    #                     )
+    #                     /(?P<id>\d{6}-\d{3}-[AF])
+    #                 ''' % {'langs': ArteTVBaseIE._ARTE_LANGUAGES}
     _TESTS = [{
         'url': 'https://www.arte.tv/en/videos/088501-000-A/mexico-stealing-petrol-to-survive/',
         'info_dict': {
@@ -74,178 +74,310 @@ class ArteTVIE(ArteTVBaseIE):
         'url': 'https://api.arte.tv/api/player/v2/config/de/100605-013-A',
         'only_matching': True,
     }]
-
+    LANGS = {
+        'fr': 'F',
+        'de': 'A',
+        'en': 'E[ANG]',
+        'es': 'E[ESP]',
+        'it': 'E[ITA]',
+        'pl': 'E[POL]',
+    }
+    TRADS = [
+        'fr-FR',
+        'de-DE',
+        'en-US',
+        'es-ES',
+        'it-IT',
+        'pl-PL',
+    ]
     def _real_extract(self, url):
         mobj = re.match(self._VALID_URL, url)
         video_id = mobj.group('id')
-        lang = mobj.group('lang')# or mobj.group('lang_2')
+        API_VERSION = mobj.group('API_VERSION')
+        lang = mobj.group('lang')  or mobj.group('lang_2')
 
         info = self._download_json(
-            '%s/config/%s/%s' % (self._API_BASE, lang, video_id), video_id)
-        player_info = info['videoJsonPlayer']
+            '%s/config/%s/%s' % ( self._API_BASE%API_VERSION, lang, video_id), video_id)
+        if API_VERSION=='v2':
+            player_info=info['data']['attributes']
+            vsr=player_info['streams']
+            formats=[]
+            subtitles={}
+            for format_it in vsr:
+                format_url=format_it['url']
+                format_id=format_it['versions'][0]
+                format_id=format_id['eStat']['ml5']
+                # overriding buggy language determination
+                langf = 'undefined'
+                subtitlef = 'undefined'
+                versionCode=format_id
+                i = 0
+                for i, la in enumerate(self.LANGS):
+                    trad = self.LANGS[la]
+                    # VOX or VX
+                    startseek = 1
+                    if versionCode[1] == 'O':
+                        startseek = 2  # means langf detection is the original language...
 
-        vsr = try_get(player_info, lambda x: x['VSR'], dict)
-        if not vsr:
-            error = None
-            if try_get(player_info, lambda x: x['custom_msg']['type']) == 'error':
-                error = try_get(
-                    player_info, lambda x: x['custom_msg']['msg'], compat_str)
-            if not error:
-                error = 'Video %s is not available' % player_info.get('VID') or video_id
-            raise ExtractorError(error, expected=True)
-
-        upload_date_str = player_info.get('shootingDate')
-        if not upload_date_str:
-            upload_date_str = (player_info.get('VRA') or player_info.get('VDA') or '').split(' ')[0]
-
-        title = (player_info.get('VTI') or player_info['VID']).strip()
-        subtitle = player_info.get('VSU', '').strip()
-        if subtitle:
-            title += ' - %s' % subtitle
-
-        qfunc = qualities(['MQ', 'HQ', 'EQ', 'SQ'])
-
-        LANGS = {
-            'fr': 'F',
-            'de': 'A',
-            'en': 'E[ANG]',
-            'es': 'E[ESP]',
-            'it': 'E[ITA]',
-            'pl': 'E[POL]',
-        }
-        TRADS =[
-            'fr-FR',
-            'de-DE',
-            'en-US',
-            'es-ES',
-            'it-IT',
-            'pl-PL',
-        ]
-
-        langcode = LANGS.get(lang, lang)
-        langind = 0
-
-        formats = []
-        for format_id, format_dict in vsr.items():
-            f = dict(format_dict)
-            format_url = url_or_none(f.get('url'))
-            streamer = f.get('streamer')
-            if not format_url and not streamer:
-                continue
-            versionCode = f.get('versionCode')
-            l = re.escape(langcode)
-
-            # Language preference from most to least priority
-            # Reference: section 6.8 of
-            # https://www.arte.tv/sites/en/corporate/files/complete-technical-guidelines-arte-geie-v1-07-1.pdf
-            PREFERENCES = (
-                # original version in requested language, without subtitles
-                r'VO{0}$'.format(l),
-                # original version in requested language, with partial subtitles in requested language
-                r'VO{0}-ST{0}$'.format(l),
-                # original version in requested language, with subtitles for the deaf and hard-of-hearing in requested language
-                r'VO{0}-STM{0}$'.format(l),
-                # non-original (dubbed) version in requested language, without subtitles
-                r'V{0}$'.format(l),
-                # non-original (dubbed) version in requested language, with subtitles partial subtitles in requested language
-                r'V{0}-ST{0}$'.format(l),
-                # non-original (dubbed) version in requested language, with subtitles for the deaf and hard-of-hearing in requested language
-                r'V{0}-STM{0}$'.format(l),
-                # original version in requested language, with partial subtitles in different language
-                r'VO{0}-ST(?!{0}).+?$'.format(l),
-                # original version in requested language, with subtitles for the deaf and hard-of-hearing in different language
-                r'VO{0}-STM(?!{0}).+?$'.format(l),
-                # original version in different language, with partial subtitles in requested language
-                r'VO(?:(?!{0}).+?)?-ST{0}$'.format(l),
-                # original version in different language, with subtitles for the deaf and hard-of-hearing in requested language
-                r'VO(?:(?!{0}).+?)?-STM{0}$'.format(l),
-                # original version in different language, without subtitles
-                r'VO(?:(?!{0}))?$'.format(l),
-                # original version in different language, with partial subtitles in different language
-                r'VO(?:(?!{0}).+?)?-ST(?!{0}).+?$'.format(l),
-                # original version in different language, with subtitles for the deaf and hard-of-hearing in different language
-                r'VO(?:(?!{0}).+?)?-STM(?!{0}).+?$'.format(l),
-            )
-
-            for pref, p in enumerate(PREFERENCES):
-                if re.match(p, versionCode):
-                    lang_pref = len(PREFERENCES) - pref
-            else:
-                lang_pref = -1
-
-
-            #overriding buggy language determination
-            langf='undefined'
-            subtitlef='undefined'
-
-            i=0
-            for i,la in enumerate(LANGS):
-                    trad=LANGS[la]
-                    #VOX or VX
-                    startseek=1
-                    if versionCode[1]=='O':
-                      startseek=2 #means langf detection is the original language...
-
-                    found=versionCode[startseek:].find(trad)
+                    found = versionCode[startseek:].find(trad)
                     if found == 0:
-                        langf = TRADS[i]
-                        found2=versionCode[startseek+found+1:].find(trad)
-                        if found2>0:
-                           if versionCode[startseek + found +found2]=='M':
-                               subtitlef = TRADS[i]+',SUBFORCED'
+                        langf = self.TRADS[i]
+                        found2 = versionCode[startseek + found + 1:].find(trad)
+                        if found2 > 0:
+                            if versionCode[startseek + found + found2] == 'M':
+                                subtitlef = self.TRADS[i] + ',SUBFORCED'
                     else:
-                      if found!=-1:
-                        subtitlef = TRADS[i]
+                        if found != -1:
+                            subtitlef = self.TRADS[i]
+                if format_it['protocol'][:3]=='HLS':
+                    dlive, m3u8_formats, subs = self._extract_m3u8_live_and_formats(
+                        format_url, video_id, 'mp4',  # entry_protocol='m3u8_native',
+                        m3u8_id=format_id, fatal=False)
+                    for m3u8_format in m3u8_formats:
+                        #m3u8_format['language_preference'] = lang_pref
+                        m3u8_format['lang'] = langf
+                        m3u8_format['subtitle'] = subtitlef
+                        # if m3u8_format[ 'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
+                        #   i = 0;
+                    formats.extend(m3u8_formats)
+                    for subk in subs:
+                          subtitles[subk]=subs[subk]
+                    continue
+                # f = dict(format_dict)
+                # format_url = url_or_none(f.get('url'))
+                # streamer = f.get('streamer')
+                # if not format_url and not streamer:
+                #     continue
+                # versionCode = f.get('versionCode')
+                # l = re.escape(langcode)
+
+                # Language preference from most to least priority
+                # Reference: section 6.8 of
+                # https://www.arte.tv/sites/en/corporate/files/complete-technical-guidelines-arte-geie-v1-07-1.pdf
 
 
+                # overriding buggy language determination
+                langf = 'undefined'
+                subtitlef = 'undefined'
 
-            media_type = f.get('mediaType')
-            if media_type == 'hls':
-                m3u8_formats = self._extract_m3u8_formats(
-                    format_url, video_id, 'mp4', # entry_protocol='m3u8_native',
-                    m3u8_id=format_id, fatal=False)
-                for m3u8_format in m3u8_formats:
-                    m3u8_format['language_preference'] = lang_pref
-                    m3u8_format['lang'] = langf
-                    m3u8_format['subtitle'] = subtitlef
-                    # if m3u8_format[ 'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
-                    #   i = 0;
-                formats.extend(m3u8_formats)
-                continue
+                i = 0
+                for i, la in enumerate(self.LANGS):
+                    trad = self.LANGS[la]
+                    # VOX or VX
+                    startseek = 1
+                    if versionCode[1] == 'O':
+                        startseek = 2  # means langf detection is the original language...
 
-            format = {
-                'title': title,
-                'format_id': format_id,
-                'preference': -10 if f.get('videoFormat') == 'M3U8' else None,
-                'language_preference': lang_pref,
-                'lang': langf,
-                'subtitle':subtitlef,
-                'format_note': '%s, %s' % (f.get('versionCode'), f.get('versionLibelle')),
-                'width': int_or_none(f.get('width')),
-                'height': int_or_none(f.get('height')),
-                'tbr': int_or_none(f.get('bitrate')),
-                'quality': qfunc(f.get('quality')),
+                    found = versionCode[startseek:].find(trad)
+                    if found == 0:
+                        langf = self.TRADS[i]
+                        found2 = versionCode[startseek + found + 1:].find(trad)
+                        if found2 > 0:
+                            if versionCode[startseek + found + found2] == 'M':
+                                subtitlef = self.TRADS[i] + ',SUBFORCED'
+                    else:
+                        if found != -1:
+                            subtitlef = self.TRADS[i]
+
+                media_type = f.get('mediaType')
+                if media_type == 'hls':
+                    m3u8_formats = self._extract_m3u8_formats(
+                        format_url, video_id, 'mp4',  # entry_protocol='m3u8_native',
+                        m3u8_id=format_id, fatal=False)
+                    for m3u8_format in m3u8_formats:
+                        m3u8_format['language_preference'] = lang_pref
+                        m3u8_format['lang'] = langf
+                        m3u8_format['subtitle'] = subtitlef
+                        # if m3u8_format[ 'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
+                        #   i = 0;
+                    formats.extend(m3u8_formats)
+                    continue
+
+                # format = {
+                #     'format_id': format_id,
+                #     'preference': -10 if f.get('videoFormat') == 'M3U8' else None,
+                #     #'language_preference': lang_pref,
+                #     'lang': langf,
+                #     'subtitle': subtitlef,
+                #     'format_note': '%s, %s' % (f.get('versionCode'), f.get('versionLibelle')),
+                #     'width': int_or_none(f.get('width')),
+                #     'height': int_or_none(f.get('height')),
+                #     'tbr': int_or_none(f.get('bitrate')),
+                #     #'quality': qfunc(f.get('quality')),
+                # }
+                #
+                # if media_type == 'rtmp':
+                #     format['url'] = f['streamer']
+                #     format['play_path'] = 'mp4:' + f['url']
+                #     format['ext'] = 'flv'
+                # else:
+                #     format['url'] = f['url']
+                #
+                # formats.append(format)
+
+            self._sort_formats(formats)
+
+            metadata = player_info['metadata'];
+
+            return {
+                'id': player_info.get('VID') or video_id,
+                 'title': metadata['title'],
+                 'description': metadata['description'],
+                'subtitles':subtitles,
+                #'upload_date': unified_strdate(upload_date_str),
+                'thumbnail': metadata['images'][0]['url'],#.get('programImage') or player_info.get('VTU', {}).get('IUR'),
+                'formats': formats,
             }
 
-            if media_type == 'rtmp':
-                format['url'] = f['streamer']
-                format['play_path'] = 'mp4:' + f['url']
-                format['ext'] = 'flv'
-            else:
-                format['url'] = f['url']
+        else:
+            player_info = info['videoJsonPlayer']
+            vsr = try_get(player_info, lambda x: x['VSR'], dict)
+            if not vsr:
+                error = None
+                if try_get(player_info, lambda x: x['custom_msg']['type']) == 'error':
+                    error = try_get(
+                        player_info, lambda x: x['custom_msg']['msg'], compat_str)
+                if not error:
+                    error = 'Video %s is not available' % player_info.get('VID') or video_id
+                raise ExtractorError(error, expected=True)
 
-            formats.append(format)
+            upload_date_str = player_info.get('shootingDate')
+            if not upload_date_str:
+                upload_date_str = (player_info.get('VRA') or player_info.get('VDA') or '').split(' ')[0]
 
-        self._sort_formats(formats)
+            title = (player_info.get('VTI') or player_info['VID']).strip()
+            subtitle = player_info.get('VSU', '').strip()
+            if subtitle:
+                title += ' - %s' % subtitle
 
-        return {
-            'id': player_info.get('VID') or video_id,
-            'title': title,
-            'description': player_info.get('VDE'),
-            'upload_date': unified_strdate(upload_date_str),
-            'thumbnail': player_info.get('programImage') or player_info.get('VTU', {}).get('IUR'),
-            'formats': formats,
-        }
+            qfunc = qualities(['MQ', 'HQ', 'EQ', 'SQ'])
+
+
+
+            langcode = self.LANGS.get(lang, lang)
+            langind = 0
+
+            formats = []
+            for format_id, format_dict in vsr.items():
+                f = dict(format_dict)
+                format_url = url_or_none(f.get('url'))
+                streamer = f.get('streamer')
+                if not format_url and not streamer:
+                    continue
+                versionCode = f.get('versionCode')
+                l = re.escape(langcode)
+
+                # Language preference from most to least priority
+                # Reference: section 6.8 of
+                # https://www.arte.tv/sites/en/corporate/files/complete-technical-guidelines-arte-geie-v1-07-1.pdf
+                PREFERENCES = (
+                    # original version in requested language, without subtitles
+                    r'VO{0}$'.format(l),
+                    # original version in requested language, with partial subtitles in requested language
+                    r'VO{0}-ST{0}$'.format(l),
+                    # original version in requested language, with subtitles for the deaf and hard-of-hearing in requested language
+                    r'VO{0}-STM{0}$'.format(l),
+                    # non-original (dubbed) version in requested language, without subtitles
+                    r'V{0}$'.format(l),
+                    # non-original (dubbed) version in requested language, with subtitles partial subtitles in requested language
+                    r'V{0}-ST{0}$'.format(l),
+                    # non-original (dubbed) version in requested language, with subtitles for the deaf and hard-of-hearing in requested language
+                    r'V{0}-STM{0}$'.format(l),
+                    # original version in requested language, with partial subtitles in different language
+                    r'VO{0}-ST(?!{0}).+?$'.format(l),
+                    # original version in requested language, with subtitles for the deaf and hard-of-hearing in different language
+                    r'VO{0}-STM(?!{0}).+?$'.format(l),
+                    # original version in different language, with partial subtitles in requested language
+                    r'VO(?:(?!{0}).+?)?-ST{0}$'.format(l),
+                    # original version in different language, with subtitles for the deaf and hard-of-hearing in requested language
+                    r'VO(?:(?!{0}).+?)?-STM{0}$'.format(l),
+                    # original version in different language, without subtitles
+                    r'VO(?:(?!{0}))?$'.format(l),
+                    # original version in different language, with partial subtitles in different language
+                    r'VO(?:(?!{0}).+?)?-ST(?!{0}).+?$'.format(l),
+                    # original version in different language, with subtitles for the deaf and hard-of-hearing in different language
+                    r'VO(?:(?!{0}).+?)?-STM(?!{0}).+?$'.format(l),
+                )
+
+                for pref, p in enumerate(PREFERENCES):
+                    if re.match(p, versionCode):
+                        lang_pref = len(PREFERENCES) - pref
+                else:
+                    lang_pref = -1
+
+
+                #overriding buggy language determination
+                langf='undefined'
+                subtitlef='undefined'
+
+                i=0
+                for i,la in enumerate(self.LANGS):
+                        trad=self.LANGS[la]
+                        #VOX or VX
+                        startseek=1
+                        if versionCode[1]=='O':
+                          startseek=2 #means langf detection is the original language...
+
+                        found=versionCode[startseek:].find(trad)
+                        if found == 0:
+                            langf = self.TRADS[i]
+                            found2=versionCode[startseek+found+1:].find(trad)
+                            if found2>0:
+                               if versionCode[startseek + found +found2]=='M':
+                                   subtitlef = self.TRADS[i]+',SUBFORCED'
+                        else:
+                          if found!=-1:
+                            subtitlef = self.TRADS[i]
+
+
+
+                media_type = f.get('mediaType')
+                if media_type == 'hls':
+                    m3u8_formats = self._extract_m3u8_formats(
+                        format_url, video_id, 'mp4', # entry_protocol='m3u8_native',
+                        m3u8_id=format_id, fatal=False)
+                    for m3u8_format in m3u8_formats:
+                        #m3u8_format['language_preference'] = lang_pref
+                        m3u8_format['lang'] = langf
+                        m3u8_format['subtitle'] = subtitlef
+                        # if m3u8_format[ 'url'] == 'https://arteptweb-vh.akamaihd.net/i/am/ptweb/058000/058400/058451-000-A_0_VF_AMM-PTWEB_XQ.1jI0XFEqDH.smil/master.m3u8':
+                        #   i = 0;
+                    formats.extend(m3u8_formats)
+                    continue
+
+                format = {
+                    'title': title,
+                    'format_id': format_id,
+                    'preference': -10 if f.get('videoFormat') == 'M3U8' else None,
+                    'language_preference': lang_pref,
+                    'lang': langf,
+                    'subtitle':subtitlef,
+                    'format_note': '%s, %s' % (f.get('versionCode'), f.get('versionLibelle')),
+                    'width': int_or_none(f.get('width')),
+                    'height': int_or_none(f.get('height')),
+                    'tbr': int_or_none(f.get('bitrate')),
+                    'quality': qfunc(f.get('quality')),
+                }
+
+                if media_type == 'rtmp':
+                    format['url'] = f['streamer']
+                    format['play_path'] = 'mp4:' + f['url']
+                    format['ext'] = 'flv'
+                else:
+                    format['url'] = f['url']
+
+                formats.append(format)
+
+            self._sort_formats(formats)
+
+            return {
+                'id': player_info.get('VID') or video_id,
+                'title': title,
+                'description': player_info.get('VDE'),
+                'upload_date': unified_strdate(upload_date_str),
+                'thumbnail': player_info.get('programImage') or player_info.get('VTU', {}).get('IUR'),
+                'formats': formats,
+            }
 
 
 class ArteTVEmbedIE(InfoExtractor):
