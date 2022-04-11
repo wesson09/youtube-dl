@@ -93,7 +93,7 @@ class ORFTVthekIE(InfoExtractor):
                 ext = determine_ext(src)
                 flive = False
                 if ext == 'm3u8':
-                    flive, m3u8_formats = self._extract_m3u8_live_and_formats(
+                    flive, m3u8_formats,subformats = self._extract_m3u8_live_and_formats(
                         src, video_id, 'mp4', m3u8_id=format_id, fatal=False)
                     if any('/geoprotection' in f['url'] for f in m3u8_formats):
                         self.raise_geo_restricted()

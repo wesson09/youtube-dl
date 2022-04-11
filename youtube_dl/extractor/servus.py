@@ -137,7 +137,7 @@ class ServusIE(InfoExtractor):
             formats.extend(self._extract_mpd_formats(
                 format_url, video_id, mpd_id='dash', fatal=False))
         elif type_ == 'hls' or ext == 'm3u8':
-            live, fmts =self._extract_m3u8_live_and_formats(
+            live, fmts, subtitleformats =self._extract_m3u8_live_and_formats(
                 format_url, video_id, 'mp4', entry_protocol='m3u8_native',
                 m3u8_id='hls', fatal=False)
             if live: is_live =True

@@ -73,7 +73,7 @@ class WDRIE(InfoExtractor):
 
                 ext = determine_ext(medium_url)
                 if ext == 'm3u8':
-                    live, formatbis=self._extract_m3u8_live_and_formats(
+                    live, formatbis, subtitleformats=self._extract_m3u8_live_and_formats(
                         medium_url, video_id, 'mp4', 'm3u8_native',
                         m3u8_id='hls')
                     formats.extend(formatbis)

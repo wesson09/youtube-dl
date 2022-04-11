@@ -59,7 +59,7 @@ class ZDFBaseIE(InfoExtractor):
         mime_type = meta.get('mimeType')
         ext = determine_ext(format_url)
         if mime_type == 'application/x-mpegURL' or ext == 'm3u8':
-            live, formatbis =self._extract_m3u8_live_and_formats(
+            live, formatbis, subtitleformats =self._extract_m3u8_live_and_formats(
                 format_url, video_id, 'mp4', m3u8_id='hls',
                 entry_protocol='m3u8_native', fatal=False)
             formats.extend(formatbis)

@@ -1665,7 +1665,7 @@ class InfoExtractor(object):
         m3u8_doc, urlh = res
         m3u8_url = urlh.geturl()
 
-        islive,res= self._parse_m3u8_formats(
+        islive,res,dum= self._parse_m3u8_formats(
             m3u8_doc, m3u8_url, ext=ext, entry_protocol=entry_protocol,
             preference=preference, m3u8_id=m3u8_id, live=live)
         return res
@@ -1683,7 +1683,7 @@ class InfoExtractor(object):
             fatal=fatal, data=data, headers=headers, query=query)
 
         if res is False:
-            return False,[]
+            return False,[],{}
 
         m3u8_doc, urlh = res
         m3u8_url = urlh.geturl()
@@ -1698,13 +1698,14 @@ class InfoExtractor(object):
         islive = False
         if '#EXT-X-FAXS-CM:' in m3u8_doc:  # Adobe Flash Access
             self.raise_drm_restricted('HLS / Adobe Flash Access')
-            return False,[]
+            return False,[],{}
 
         if re.search(r'#EXT-X-(SESSION-)?KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
             self.raise_drm_restricted('HLS / Apple FairPlay')
-            return False,[]
+            return False,[],{}
 
         formats = []
+        subtitles = {}
 
         format_url = lambda u: (
             u
@@ -1730,7 +1731,7 @@ class InfoExtractor(object):
         if '#EXT-X-TARGETDURATION' in m3u8_doc:  # media playlist, return as is
             if not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist tagged 'live_blacklist' to be ignored later
                format_note = 'live_blacklist'
-               return True,[{}]
+               return True,[{}],{}
             # get all fragments uri
             fragments = []
             for line in m3u8_doc.splitlines():
@@ -1749,7 +1750,7 @@ class InfoExtractor(object):
                 'preference': preference,
                 'fragments': fragments,
                 'format_note':format_note,
-            }]
+            }], {}
 
         groups = {}
         last_stream_inf = {}
@@ -1762,7 +1763,26 @@ class InfoExtractor(object):
             if not (media_type and group_id and name):
                 return live
             groups.setdefault(group_id, []).append(media)
-            if media_type not in ('VIDEO', 'AUDIO'):
+
+            if media_type  in ('SUBTITLES'):
+
+                format_id = []
+                for v in (m3u8_id, group_id, name):
+                    if v:
+                        format_id.append(v)
+                live,subformat,subs = self._extract_m3u8_live_and_formats(format_url(media.get('URI')), '-'.join(format_id), 'mp4')
+                suburl= subformat[0]['fragments'][0]['url']
+                #urlsub=compat_urlparse(suburl);
+
+                extension = os.path.splitext(suburl)[1][1:]
+
+                s={'url':format_url(suburl),'name':media['NAME'],'ext':extension};
+                l=media.get('LANGUAGE');
+                if subtitles.get(l):
+                    subtitles [l].append(s)
+                else:  subtitles [l]=[s]
+
+            if media_type not in ('VIDEO', 'AUDIO','SUBTITLES'): #add subtitle formats for blacklisting?
                 return live
             media_url = media.get('URI')
             if media_url:
@@ -1770,7 +1790,7 @@ class InfoExtractor(object):
                 for v in (m3u8_id, group_id, name):
                     if v:
                         format_id.append(v)
-                live,sub = self._extract_m3u8_live_and_formats(format_url(media_url), '-'.join(format_id), 'mp4')
+                live,sub,dumsub = self._extract_m3u8_live_and_formats(format_url(media_url), '-'.join(format_id), 'mp4')
                 # if 'live' in sub[0] and sub[0]['live']:
                 #     live=True;
                 f = {
@@ -1837,7 +1857,7 @@ class InfoExtractor(object):
                     format_id.append(stream_name if stream_name else '%d' % (tbr if tbr else len(formats)))
                 manifest_url = format_url(line.strip())
 
-                sublive,sub = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4',fatal=False)
+                sublive,sub, subtitleformats  = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4',fatal=False)
                 if sublive:
                     live=True;
 
@@ -1913,7 +1933,7 @@ class InfoExtractor(object):
 
                 last_stream_inf = {}
 
-        return live,formats
+        return live,formats,subtitles
 
     @staticmethod
     def _xpath_ns(path, namespace=None):
@@ -2096,7 +2116,7 @@ class InfoExtractor(object):
 
             is_live = False;
             if proto == 'm3u8' or src_ext == 'm3u8':
-                live, m3u8_formats = self._extract_m3u8_live_and_formats(
+                live, m3u8_formats, subtitleformats  = self._extract_m3u8_live_and_formats(
                     src_url, video_id, ext or 'mp4', m3u8_id='hls', fatal=False)
                 if live:
                     is_live=True;
@@ -2715,7 +2735,7 @@ class InfoExtractor(object):
             live=False;
             if ext == 'm3u8':
                 is_plain_url = False
-                live,formats = self._extract_m3u8_live_and_formats(
+                live,formats, subtitleformats  = self._extract_m3u8_live_and_formats(
                     full_url, video_id, ext='mp4',
                     entry_protocol=m3u8_entry_protocol, m3u8_id=m3u8_id,
                     preference=preference, fatal=False)

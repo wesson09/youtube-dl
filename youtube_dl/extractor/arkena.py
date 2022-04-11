@@ -137,7 +137,7 @@ class ArkenaIE(InfoExtractor):
                                 href, video_id, fatal=False)
                             formats.extend(formatbis)
                         elif mime_type == 'application/x-mpegURL':
-                            live, formatbis = self._extract_m3u8_live_and_formats(
+                            live, formatbis, subformats = self._extract_m3u8_live_and_formats(
                                 href, video_id, 'mp4', 'm3u8_native',
                                 m3u8_id='hls', fatal=False)
                             formats.extend(formatbis)

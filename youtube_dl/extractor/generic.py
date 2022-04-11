@@ -2438,7 +2438,7 @@ class GenericIE(InfoExtractor):
             livedetected=full_response is not None # assume generic live servers don't allow head request (flv,icecast..)
             format_id = compat_str(m.group('format_id'))
             if format_id.endswith('mpegurl'):
-                livedetected,formats = self._extract_m3u8_live_and_formats(url, video_id, 'mp4')
+                livedetected,formats, subtitleformats  = self._extract_m3u8_live_and_formats(url, video_id, 'mp4')
             elif format_id == 'f4m':
                 formats = self._extract_f4m_formats(url, video_id)
             else:
@@ -3587,7 +3587,7 @@ class GenericIE(InfoExtractor):
             elif ext == 'xspf':
                 return self.playlist_result(self._extract_xspf_playlist(video_url, video_id), video_id)
             elif ext == 'm3u8':
-                entry_info_dict['is_live'], entry_info_dict['formats'] = self._extract_m3u8_live_and_formats(video_url, video_id, ext='mp4')
+                entry_info_dict['is_live'], entry_info_dict['formats'], entry_info_dict['subtitles']  = self._extract_m3u8_live_and_formats(video_url, video_id, ext='mp4')
             elif ext == 'mpd':
                 entry_info_dict['is_live'], entry_info_dict['formats'] = self._extract_mpd_live_and_formats(video_url, video_id)
             elif ext == 'f4m':

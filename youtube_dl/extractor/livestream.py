@@ -169,7 +169,7 @@ class LivestreamIE(InfoExtractor):
 
         m3u8_url = stream_info.get('m3u8_url')
         if m3u8_url:
-            live, formatbis = self._extract_m3u8_live_and_formats(
+            live, formatbis, subtitleformats = self._extract_m3u8_live_and_formats(
                 m3u8_url, broadcast_id, 'mp4', 'm3u8_native',
                 m3u8_id='hls', fatal=False)
             if live:

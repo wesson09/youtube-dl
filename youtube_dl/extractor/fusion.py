@@ -57,10 +57,10 @@ class FusionIE(InfoExtractor):
                     continue
                 ext = determine_ext(q_url, mimetype2ext(q.get('type')))
                 if ext == 'smil':
-                    live, formatbis = self._extract_smil_live_and_formats(q_url, video_id, fatal=False)
+                    live, formatbis, subtitleformats  = self._extract_smil_live_and_formats(q_url, video_id, fatal=False)
                     formats.extend(formatbis)
                 elif f_id == 'm3u8-variant' or (ext == 'm3u8' and q_id == 'Variant'):
-                    live, formatbis = self._extract_m3u8_live_and_formats(
+                    live, formatbis, subtitleformats  = self._extract_m3u8_live_and_formats(
                         q_url, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False)
                     formats.extend(formatbis)
                 else:

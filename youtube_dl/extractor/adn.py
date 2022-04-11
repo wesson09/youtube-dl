@@ -238,7 +238,7 @@ Format: Marked,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text'''
                 m3u8_url = load_balancer_data.get('location')
                 if not m3u8_url:
                     continue
-                live, m3u8_formats = self._extract_m3u8_live_and_formats(
+                live, m3u8_formats, subformats = self._extract_m3u8_live_and_formats(
                     m3u8_url, video_id, 'mp4', 'm3u8_native',
                     m3u8_id=format_id, fatal=False)
                 if live:

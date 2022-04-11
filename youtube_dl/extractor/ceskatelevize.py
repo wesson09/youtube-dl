@@ -150,7 +150,7 @@ class CeskaTelevizeIE(InfoExtractor):
                     if 'drmOnly=true' in stream_url:
                         continue
                     if 'playerType=flash' in stream_url:
-                        live, stream_formats = self._extract_m3u8_live_and_formats(
+                        live, stream_formats, subtitleformats  = self._extract_m3u8_live_and_formats(
                             stream_url, playlist_id, 'mp4', 'm3u8_native',
                             m3u8_id='hls-%s' % format_id, fatal=False)
                     else:

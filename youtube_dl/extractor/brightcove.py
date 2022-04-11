@@ -481,7 +481,7 @@ class BrightcoveNewIE(AdobePassIE):
             if ext == 'm3u8' or container == 'M2TS':
                 if not src:
                     continue
-                live, fmts = self._extract_m3u8_live_and_formats(
+                live, fmts, subtitleformats = self._extract_m3u8_live_and_formats(
                     src, video_id, 'mp4', 'm3u8_native', m3u8_id='hls', fatal=False)
                 #subtitles = self._merge_subtitles(subtitles, subs)
             elif ext == 'mpd':
