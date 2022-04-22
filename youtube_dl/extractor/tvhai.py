@@ -1,4 +1,7 @@
 # coding: utf-8
+
+threadCount = 2  # WARNING: increase it to accelerate the slow head requests batch process but you may be blacklisted for that
+
 from __future__ import unicode_literals
 import time
 import http.client
@@ -22,10 +25,14 @@ from ..utils import (
     parse_iso8601,
     strip_or_none,
     try_get, sanitize_url,
+    HEADRequest,
 )
 
 import socket
 import ssl
+
+
+
 #
 # from  ..http3_client import (HttpClient,HttpRequest,HttpConnection);
 # import asyncio
@@ -207,7 +214,7 @@ from youtube_dl.compat import (
   compat_urllib_request
 )
 from threading import Thread
-class HeadRequest(Thread,InfoExtractor):
+class HeadRequestThread(Thread,InfoExtractor):
     headrequeststring = 0
     video_id=''
     headers={}
@@ -229,8 +236,8 @@ class HeadRequest(Thread,InfoExtractor):
         nbtry=0;
         while fail and nbtry<10:
             try:
-               s = compat_urllib_request.session()
-               s.headers=self.headers;
+               #s = compat_urllib_request.session()
+               #s.headers=self.headers;
 #                url_or_request = urllib3.re(
 #                    method="HEAD",
 #                    url=sanitize_url(self.headrequeststring),
@@ -248,8 +255,15 @@ class HeadRequest(Thread,InfoExtractor):
                #force urllib3 because of a bug in urllib in Python36_32bits
                #TODO should evolve to 38 but I got back from it whithout remembering why..:/
                #self.responseheader = urllib3.PoolManager().request('HEAD',sanitize_url(self.headrequeststring), None, self.headers)
+               #HEADRequest(self.headrequeststring, self.video_id,   headers=self.headers )
+               head_req = HEADRequest(self.headrequeststring)
 
-               self.responseheader = self._request_webpage(self.headrequeststring, self.video_id,   headers=self.headers  )
+               self.responseheader = self._request_webpage(
+                   head_req, self.video_id,
+                   note=False, errnote='Could not send HEAD request to %s' % self.headrequeststring,
+                   fatal=False, headers = self.headers)
+
+               #self.responseheader = self._request_webpage(self.headrequeststring, self.video_id,   headers=self.headers  )
                print(self.responseheader.headers['content-length'])
                fail=False;
             except Exception as e:
@@ -352,23 +366,23 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
             }
 
         else:  #https://play.tvhaystream.xyz/play/v1/ID
-            prejsonwebpage=self._download_webpage(embedlink,video_id,headers={
-               # 'Host': 'api-if.tvhaystream.xyz',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
-    #'Accept': '*/*',
-    #'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-    #'Accept-Encoding': 'gzip, deflate, br',
-    #'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-    #'Content-Length': '44',
-    #'Connection': 'keep-alive',
-    #'Sec-Fetch-Dest': 'empty',
-    #'Sec-Fetch-Mode': 'cors',
-    #'Sec-Fetch-Site': 'same-site',
-    #'Pragma': 'no-cache',
-    #'Cache-Control': 'no-cache',
-                    #'Authorization': '%s %s' % (token_type, access_token),
-                    #'Referer': '%s' % ('https://play.tvhaystream.xyz'),
-                    'Origin': '%s' % ('https://play.tvhaystream.xyz'),
+            prejsonwebpage=self._download_webpage(embedlink, video_id, headers={
+                # 'Host': 'api-if.tvhaystream.xyz',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
+                #'Accept': '*/*',
+                #'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
+                #'Accept-Encoding': 'gzip, deflate, br',
+                #'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                #'Content-Length': '44',
+                #'Connection': 'keep-alive',
+                #'Sec-Fetch-Dest': 'empty',
+                #'Sec-Fetch-Mode': 'cors',
+                #'Sec-Fetch-Site': 'same-site',
+                #'Pragma': 'no-cache',
+                #'Cache-Control': 'no-cache',
+                #'Authorization': '%s %s' % (token_type, access_token),
+                #'Referer': '%s' % ('https://play.tvhaystream.xyz'),
+                'Origin': '%s' % ('https://play.tvhaystream.xyz'),
                 });
            # print(prejsonwebpage);
 
@@ -482,68 +496,59 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
                     'Origin': '%s' % ('https://play.tvhaystream.xyz'),
                 }
                 videojsonhandle = self._download_json_handle(
-                    addr ,
+                    addr,
                     show_path, 'Downloading video JSON',
                     data=bytes('referrer=http://tvhai.org&typeend=html', 'utf-8'), headers=   headers , fatal=False)
 
 
-                requestresult= videojsonhandle[0];
-                print(requestresult);
+                requestresult= videojsonhandle[0]
+                print(requestresult)
 
-
-                m3u8_doc='#EXTM3U\n';
-                m3u8_doc+='#EXT-X-VERSION:3\n';
-                m3u8_doc+='#EXT-X-TARGETDURATION:10\n';
-                m3u8_doc+='#EXT-X-PLAYLIST-TYPE:VOD\n';
-                # EXTM3U
-                # EXT-X-VERSION:3
-                # EXT-X-TARGETDURATION:10
-                # EXT-X-PLAYLIST-TYPE:VOD
-                # EXTINF:10,
+                m3u8_doc='#EXTM3U\n'
+                m3u8_doc+='#EXT-X-VERSION:3\n'
+                m3u8_doc+='#EXT-X-TARGETDURATION:10\n'
+                m3u8_doc+='#EXT-X-PLAYLIST-TYPE:VOD\n'
                 headers = {'Accept': '*/*',
-                    'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-                            'User-Agent': 'Mozilla/5.0',# (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
+                           'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
+                           'User-Agent': 'Mozilla/5.0',# (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
+                           'Referer':embedlink,
                            #"Origin": "https://play.tvhaystream.xyz",
                            # "referer": "https://apird-tvhai.rdgogo.xyz",
                            #"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty",
-                             "Accept-Encoding": "gzip, deflate",
+                           "Accept-Encoding": "gzip, deflate",
                            #"TE": "trailers",
-                          # "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
+                           #"Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
                            #"Pragma": "no-cache", "DNT": "1",
                            #"Sec-GPC": "1", "Connection": "keep-alive"
                            }
-                headreqs=[];
+                headreqs=[]
 
-                idxdomain=0;
+
+                idxdomain=0
                 idx=0
                 while idx <len (requestresult['data'][1]):
                     id2=0
                     headreqs2=[]
-                    while (id2+idx<len (requestresult['data'][1]) ) and (id2<50) :
+                    while (id2+idx<len (requestresult['data'][1]) ) and (id2<threadCount) :
                         v=requestresult['data'][1][idx+id2]
-                        domain=DOMAIN_LIST_RD[idxdomain];
+                        domain=DOMAIN_LIST_RD[idxdomain]
                         idxdomain=idxdomain+1
                         if idxdomain>=len(DOMAIN_LIST_RD):
-                            idxdomain=0;
+                            idxdomain=0
                         #thr=HeadRequest('https://apird-tvhai.rdgogo.xyz/rdv5/%s/%s/%s.rd' % (requestresult['quaity'], idUser, v),v,headers,self);
-                        thr = HeadRequest(
-                            'https://%s/stream/v5/%s.html' % (domain, v), v,
-                            headers, self);
+                        thr = HeadRequestThread(
+                            'https://%s/%s' % (domain, v), v,
+                            headers, self)
                         thr.set_downloader(self._downloader)
-                        headreqs2.append(thr);
-                        id2=id2+1;
+                        headreqs2.append(thr)
+                        id2=id2+1
                     for r in headreqs2:
-                        r.start();
+                        r.start()
                     for r in headreqs2:
-                        r.join();
-                    headreqs.extend(headreqs2);
-                    idx=idx+id2;
-
-                    # for v in requestresult['data'][1]:
-                    #     thr=HeadRequest('https://apird-tvhai.rdgogo.xyz/rdv5/%s/%s/%s.rd' % (requestresult['quaity'], idUser, v),v,headers,self);
-                    #     thr.set_downloader(self._downloader)
-                    #     headreqs.append(thr);
-
+                        r.join()
+                    print(-idx + len(requestresult['data'][1]))
+                    headreqs.extend(headreqs2)
+                    idx=idx+id2
 
                 idx=0
                 idxdomain=0
@@ -551,16 +556,9 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
                     domain = DOMAIN_LIST_RD[idxdomain];
                     idxdomain = idxdomain + 1
                     if idxdomain >= len(DOMAIN_LIST_RD):
-                        idxdomain = 0;
-                    v1= re.findall('\w+$',v);
-                    m3Uchunk='https://%s/stream/v5/%s.html' % (domain, v)
+                        idxdomain = 0
+                    m3Uchunk='https://%s/%s' % (domain, v)
 
-                    # metachunk = self._request_webpage(m3Uchunk, show_path, #'note', 'errnote', fatal, data=data,
-                    #                                    headers=headers,
-                    #                           #   query=query, expected_status=expected_status
-                    #                                   )
-                    #
-                    # print(metachunk.headers['content-length'])
                     chunksize=int(headreqs[idx].responseheader.headers['content-length']);
 
                     #print(m3Uchunk);
@@ -569,7 +567,7 @@ class TVhaiIE(InfoExtractor):#TurnerBaseIE):
                     m3u8_doc += m3Uchunk+'\n';
                     idx=idx+1
                 m3u8_doc +='#EXT-X-ENDLIST\n';
-                print(m3u8_doc)
+                #print(m3u8_doc)
                 d=base64.b64encode(bytes(m3u8_doc, 'UTF-8'))
                 dataurl='data:application/x-mpegURL;base64,' +d.decode(encoding="utf-8");
                 formats = self._extract_m3u8_formats(
