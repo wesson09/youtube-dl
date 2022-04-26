@@ -57,7 +57,8 @@ class PostProcessor(object):
 
     def try_utime(self, path, atime, mtime, errnote='Cannot update utime of file'):
         try:
-            os.utime(encodeFilename(path), (atime, mtime))
+            dummy=0
+            #os.utime(encodeFilename(path), (atime, mtime))
         except Exception:
             self._downloader.report_warning(errnote)
 

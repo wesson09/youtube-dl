@@ -263,11 +263,11 @@ class FragmentFD(FileDownloader):
             self.try_rename(ctx['tmpfilename'], ctx['filename'])
             if self.params.get('updatetime', True):
                 filetime = ctx.get('fragment_filetime')
-                if filetime:
-                    try:
-                        os.utime(ctx['filename'], (time.time(), filetime))
-                    except Exception:
-                        pass
+                # if filetime:
+                #     try:
+                #         os.utime(ctx['filename'], (time.time(), filetime))
+                #     except Exception:
+                #         pass
             downloaded_bytes = os.path.getsize(encodeFilename(ctx['filename']))
 
         self._hook_progress({

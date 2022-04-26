@@ -218,10 +218,10 @@ class FileDownloader(object):
         # Ignore obviously invalid dates
         if filetime == 0:
             return
-        try:
-            os.utime(filename, (time.time(), filetime))
-        except Exception:
-            pass
+        # try:
+        #     os.utime(filename, (time.time(), filetime))
+        # except Exception:
+        #     pass
         return filetime
 
     def report_destination(self, filename):
