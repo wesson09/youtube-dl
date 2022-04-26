@@ -2435,7 +2435,10 @@ class GenericIE(InfoExtractor):
         content_type = head_response.headers.get('Content-Type', '').lower()
         m = re.match(r'^(?P<type>audio|video|application(?=/(?:ogg$|(?:vnd\.apple\.|x-)?mpegurl)))/(?P<format_id>[^;\s]+)', content_type)
         if m:
+            content_length = head_response.headers.get('Content-Length', '0')
             livedetected=full_response is not None # assume generic live servers don't allow head request (flv,icecast..)
+            if not livedetected:
+                livedetected=content_length=='0' #or if no content length exposed
             format_id = compat_str(m.group('format_id'))
             if format_id.endswith('mpegurl'):
                 livedetected,formats, subtitleformats  = self._extract_m3u8_live_and_formats(url, video_id, 'mp4')
