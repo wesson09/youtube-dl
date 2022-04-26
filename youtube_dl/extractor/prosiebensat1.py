@@ -35,7 +35,7 @@ class ProSiebenSat1BaseIE(InfoExtractor):
             })[0]
 
         if video.get('is_protected') is True:
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
 
         formats = []
         if self._ACCESS_ID:

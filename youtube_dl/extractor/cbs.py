@@ -156,7 +156,8 @@ class CBSIE(CBSBaseIE):
             asset_types[asset_type] = query
 
         if not asset_types and has_drm:
-            raise ExtractorError('Only DRM formats found', video_id=content_id, expected=True)
+            self.raise_drm_restricted('Only DRM formats found')
+            #raise ExtractorError('Only DRM formats found', video_id=content_id, expected=True)
 
         return self._extract_common_video_info(content_id, asset_types, mpx_acc, extra_info={
             'title': title,

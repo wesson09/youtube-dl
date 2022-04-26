@@ -247,7 +247,7 @@ class NPOIE(NPOBaseIE):
 
         if not formats:
             if drm:
-                raise ExtractorError('This video is DRM protected.', expected=True)
+                self.raise_drm_restricted('This video is DRM protected.', expected=True)
             return
 
         self._sort_formats(formats)

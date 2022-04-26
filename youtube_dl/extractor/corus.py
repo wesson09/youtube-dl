@@ -132,7 +132,7 @@ class CorusIE(ThePlatformFeedIE):
                 smil, smil_url, video_id, namespace)
             formats.extend(formatbis)
         if not formats and video.get('drm'):
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
         self._sort_formats(formats)
 
         subtitles = {}

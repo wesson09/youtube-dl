@@ -583,6 +583,10 @@ def parseOpts(overrideArguments=None):
         action='store_true', dest='dumpregex', default=False,
         help='Dump extractors regular expressions')
     verbosity.add_option(
+        '--ignoredrm',
+        action='store_true', dest='ignoredrm', default=False,
+        help='download even if drm protected')
+    verbosity.add_option(
         '--no-warnings',
         dest='no_warnings', action='store_true', default=False,
         help='Ignore warnings')

@@ -68,8 +68,8 @@ class TVNowBaseIE(InfoExtractor):
                 break
         else:
             if info.get('isDrm'):
-                raise ExtractorError(
-                    'Video %s is DRM protected' % video_id, expected=True)
+                self.raise_drm_restricted(
+                    'Video %s is DRM protected' % video_id)
             if info.get('geoblocked'):
                 raise self.raise_geo_restricted()
             if not info.get('free', True):

@@ -46,11 +46,10 @@ class WakanimIE(InfoExtractor):
             r'encryption%3D(c(?:enc|bc(?:s-aapl)?))',
             m3u8_url, 'encryption', default=None)
         if encryption and encryption in ('cenc', 'cbcs-aapl'):
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
 
-        formats = self._extract_m3u8_formats(
-            m3u8_url, video_id, 'mp4', entry_protocol='m3u8_native',
-            m3u8_id='hls')
+        formats = self._extract_mpd_formats(
+            m3u8_url, video_id, 'mp4')#mpd_url, None, note=False, errnote=False, fatal=False , entry_protocol='m3u8_native',            m3u8_id='hls')
 
         info = self._search_json_ld(webpage, video_id, default={})
 

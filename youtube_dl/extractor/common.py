@@ -948,6 +948,12 @@ class InfoExtractor(object):
         """Report attempt to log in."""
         self.to_screen('Logging in')
 
+    def raise_drm_restricted(self,msg=''):
+        if not self._downloader.params.get('ignoredrm'):
+            raise DRMError('This video is DRM protected: ' + msg)
+        else:
+            self.report_warning('This video is DRM protected: ' + msg)
+
     @staticmethod
     def raise_login_required(msg='This video is only available for registered users'):
         raise ExtractorError(
@@ -958,9 +964,6 @@ class InfoExtractor(object):
     def raise_geo_restricted(msg='This video is not available from your location due to geo restriction', countries=None):
         raise GeoRestrictedError(msg, countries=countries)
 
-    @staticmethod
-    def raise_drm_restricted(msg=''):
-        raise DRMError('This video is DRM protected: '+msg)
 
     # Methods for following #608
     @staticmethod
@@ -1698,11 +1701,11 @@ class InfoExtractor(object):
         islive = False
         if '#EXT-X-FAXS-CM:' in m3u8_doc:  # Adobe Flash Access
             self.raise_drm_restricted('HLS / Adobe Flash Access')
-            return False,[],{}
+            #return False,[],{}
 
         if re.search(r'#EXT-X-(SESSION-)?KEY:.*?URI="skd://', m3u8_doc):  # Apple FairPlay
             self.raise_drm_restricted('HLS / Apple FairPlay')
-            return False,[],{}
+            #return False,[],{}
 
         formats = []
         subtitles = {}

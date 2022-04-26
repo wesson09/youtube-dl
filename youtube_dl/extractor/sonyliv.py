@@ -76,7 +76,7 @@ class SonyLIVIE(InfoExtractor):
         content = self._call_api(
             '1.5', 'IN/CONTENT/VIDEOURL/VOD/' + video_id, video_id)
         if content.get('isEncrypted'):
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
         dash_url = content['videoURL']
         headers = {
             'x-playback-session-id': '%s-%d' % (uuid.uuid4().hex, time.time() * 1000)

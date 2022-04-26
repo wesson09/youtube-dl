@@ -88,5 +88,5 @@ class Tele5IE(DPlayIE):
             return self._get_disco_api_info(url, asset_id, endpoint, realm, country)
         except ExtractorError as e:
             if getattr(e, 'message', '') == 'Missing deviceId in context':
-                raise ExtractorError('DRM protected', cause=e, expected=True)
+                self.raise_drm_restricted('DRM protected:'+str(e))#, cause=e, expected=True)
             raise

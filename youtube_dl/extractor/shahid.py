@@ -119,7 +119,7 @@ class ShahidIE(ShahidBaseIE):
             'playout/new/url/' + video_id, video_id)['playout']
 
         if playout.get('drm'):
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
 
         formats = self._extract_m3u8_formats(re.sub(
             # https://docs.aws.amazon.com/mediapackage/latest/ug/manifest-filtering.html

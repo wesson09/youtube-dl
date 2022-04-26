@@ -35,7 +35,7 @@ class NineCNineMediaIE(InfoExtractor):
             })
 
         if try_get(content_package, lambda x: x['Constraints']['Security']['Type']):
-            raise ExtractorError('This video is DRM protected.', expected=True)
+            self.raise_drm_restricted('This video is DRM protected.')
 
         manifest_base_url = content_package_url + 'manifest.'
         formats = []
