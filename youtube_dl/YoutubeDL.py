@@ -1360,18 +1360,18 @@ class YoutubeDL(object):
                     format_1, format_2 = [f['format_id'] for f in formats_info]
                     # The first format must contain the video and the
                     # second the audio
-                    if formats_info[0].get('vcodec') == 'none':
-                        self.report_error('The first format must '
-                                          'contain the video, try using '
-                                          '"-f %s+%s"' % (format_2, format_1))
-                        return
-                    # Formats must be opposite (video+audio)
-                    #commented : sometime video and audio are already merged?
-                    if formats_info[0].get('acodec') == 'none' and formats_info[1].get('acodec') == 'none':
-                        self.report_error(
-                            'Both formats %s and %s are video-only, you must specify "-f video+audio"'
-                            % (format_1, format_2))
-                        return
+                    # if formats_info[0].get('vcodec') == 'none':
+                    #     self.report_warning('The first format must '
+                    #                       'contain the video, try using '
+                    #                       '"-f %s+%s"' % (format_2, format_1))
+                    #     return
+                    # # Formats must be opposite (video+audio)
+                    # #commented : sometime video and audio are already merged?
+                    # if formats_info[0].get('acodec') == 'none' and formats_info[1].get('acodec') == 'none':
+                    #     self.report_warning(
+                    #         'Both formats %s and %s are video-only, you must specify "-f video+audio"'
+                    #         % (format_1, format_2))
+                    #     return
                     output_ext = (
                         formats_info[0]['ext']
                         if self.params.get('merge_output_format') is None
