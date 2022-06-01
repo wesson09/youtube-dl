@@ -6,7 +6,8 @@ import socket
 import time
 import random
 import re
-
+import urllib.request
+import ssl
 from .common import FileDownloader
 from ..compat import (
     compat_str,
@@ -23,6 +24,8 @@ from ..utils import (
     XAttrMetadataError,
     XAttrUnavailableError,
 )
+import urllib3
+from urllib3 import connection
 
 class HttpFD(FileDownloader):
     def real_download(self, filename, info_dict):
@@ -101,13 +104,17 @@ class HttpFD(FileDownloader):
                 range_end = ctx.data_len - 1
             has_range = range_start is not None
             ctx.has_range = has_range
-            request = sanitized_Request(url, None, headers)
+            request = urllib.request.Request(url, None, headers)
             if has_range:
                 set_range(request, range_start, range_end)
             # Establish connection
+            request.headers=headers
+            urllib3.disable_warnings()
             try:
                 try:
-                    ctx.data = self.ydl.urlopen(request)
+                    http=urllib3.PoolManager( cert_reqs='CERT_NONE')
+                    ctx.data = http.request('GET', request.full_url, headers=headers, preload_content=False)
+                    #ctx.data = self.ydl.urlopen(request)
                 except (compat_urllib_error.URLError, ) as err:
                     # reason may not be available, e.g. for urllib2.HTTPError on python 2.6
                     reason = getattr(err, 'reason', None)
@@ -144,7 +151,7 @@ class HttpFD(FileDownloader):
                     self.report_unable_to_resume()
                     ctx.resume_len = 0
                     ctx.open_mode = 'wb'
-                ctx.data_len = int_or_none(ctx.data.info().get('Content-length', None))
+                ctx.data_len = int_or_none(ctx.data.headers.get('Content-length', None))
                 return
             except (compat_urllib_error.HTTPError, ) as err:
                 if err.code == 416:
@@ -153,7 +160,7 @@ class HttpFD(FileDownloader):
                         # Open the connection again without the range header
                         ctx.data = self.ydl.urlopen(
                             sanitized_Request(url, None, headers))
-                        content_length = ctx.data.info()['Content-Length']
+                        content_length = ctx.data.headers['Content-Length']
                     except (compat_urllib_error.HTTPError, ) as err:
                         if err.code < 500 or err.code >= 600:
                             raise
@@ -194,7 +201,7 @@ class HttpFD(FileDownloader):
                 raise RetryDownload(err)
 
         def download():
-            data_len = ctx.data.info().get('Content-length', None)
+            data_len = ctx.data.headers.get(('Content-length').capitalize(), None)
 
             # Range HTTP header may be ignored/unsupported by a webserver
             # (e.g. extractor/scivee.py, extractor/bambuser.py).
@@ -236,6 +243,7 @@ class HttpFD(FileDownloader):
                 try:
                     # Download and write
                     data_block = ctx.data.read(block_size if data_len is None else min(block_size, data_len - byte_counter))
+                    #data_block = ctx.data.data[:block_size if data_len is None else min(block_size, data_len - byte_counter)]
                 # socket.timeout is a subclass of socket.error but may not have
                 # errno set
                 except socket.timeout as e:
@@ -381,7 +389,7 @@ class HttpFD(FileDownloader):
 
             # Update file modification time
             if self.params.get('updatetime', True):
-                info_dict['filetime'] = self.try_utime(ctx.filename, ctx.data.info().get('last-modified', None))
+                info_dict['filetime'] = self.try_utime(ctx.filename, ctx.data.headers.get('last-modified', None))
 
             self._hook_progress({
                 'downloaded_bytes': byte_counter,
