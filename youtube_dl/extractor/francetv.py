@@ -90,13 +90,142 @@ class FranceTVIE(InfoExtractor):
         # Videos are identified by idDiffusion so catalogue part is optional.
         # However when provided, some extra formats may be returned so we pass
         # it if available.
-        info = self._download_json(
-            'https://sivideo.webservices.francetelevisions.fr/tools/getInfosOeuvre/v2/',
-            video_id, 'Downloading video JSON', query={
-                'idDiffusion': video_id,
-                'catalogue': catalogue or '',
+        is_live = None
+        videos = []
+        title = None
+        subtitle = None
+        image = None
+        duration = None
+        timestamp = None
+        spritesheets = None
+
+        for device_type in ('desktop', 'mobile'):
+            dinfo = self._download_json(
+                'https://player.webservices.francetelevisions.fr/v1/videos/%s' % video_id,
+                video_id, 'Downloading %s video JSON' % device_type, query={
+                    'device_type': device_type,
+                    'browser': 'chrome',
+                }, fatal=False)
+
+            if not dinfo:
+                continue
+
+            video = dinfo.get('video')
+            if video:
+                videos.append(video)
+                if duration is None:
+                    duration = video.get('duration')
+                if is_live is None:
+                    is_live = video.get('is_live')
+                if spritesheets is None:
+                    spritesheets = video.get('spritesheets')
+
+            meta = dinfo.get('meta')
+            if meta:
+                if title is None:
+                    title = meta.get('title')
+                # XXX: what is meta['pre_title']?
+                if subtitle is None:
+                    subtitle = meta.get('additional_title')
+                if image is None:
+                    image = meta.get('image_url')
+                if timestamp is None:
+                    timestamp = meta.get('broadcasted_at') #parse_iso8601
+
+        formats = []
+        subtitles = {}
+        for video in videos:
+            format_id = video.get('format')
+
+            video_url = None
+            if video.get('workflow') == 'token-akamai':
+                token_url = video.get('token')
+                if token_url:
+                    token_json = self._download_json(
+                        token_url, video_id,
+                        'Downloading signed %s manifest URL' % format_id)
+                    if token_json:
+                        video_url = token_json.get('url')
+            if not video_url:
+                video_url = video.get('url')
+
+            ext = determine_ext(video_url)
+            if ext == 'f4m':
+                formats.extend(self._extract_f4m_formats(
+                    video_url, video_id, f4m_id=format_id, fatal=False))
+            elif ext == 'm3u8':
+                fmts = self._extract_m3u8_formats(
+                    video_url, video_id, 'mp4',
+                    entry_protocol='m3u8_native', m3u8_id=format_id,
+                    fatal=False)
+                formats.extend(fmts)
+                #self._merge_subtitles(subs, target=subtitles)
+            elif ext == 'mpd':
+                fmts = self._extract_mpd_formats(
+                    video_url, video_id, mpd_id=format_id, fatal=False)
+                formats.extend(fmts)
+                #self._merge_subtitles(subs, target=subtitles)
+            elif video_url.startswith('rtmp'):
+                formats.append({
+                    'url': video_url,
+                    'format_id': 'rtmp-%s' % format_id,
+                    'ext': 'flv',
+                })
+            else:
+                if self._is_valid_url(video_url, video_id, format_id):
+                    formats.append({
+                        'url': video_url,
+                        'format_id': format_id,
+                    })
+
+            # XXX: what is video['captions']?
+
+        for f in formats:
+            if f.get('acodec') != 'none' and f.get('language') in ('qtz', 'qad'):
+                f['language_preference'] = -10
+                f['format_note'] = 'audio description%s' % str(f)#(f, 'format_note', ', %s')
+
+        if spritesheets:
+            formats.append({
+                'format_id': 'spritesheets',
+                'format_note': 'storyboard',
+                'acodec': 'none',
+                'vcodec': 'none',
+                'ext': 'mhtml',
+                'protocol': 'mhtml',
+                'url': 'about:invalid',
+                'fragments': [{
+                    'url': sheet,
+                    # XXX: not entirely accurate; each spritesheet seems to be
+                    # a 10×10 grid of thumbnails corresponding to approximately
+                    # 2 seconds of the video; the last spritesheet may be shorter
+                    'duration': 200,
+                } for sheet in spritesheets]
             })
 
+        self._sort_formats(formats)
+
+        if subtitle:
+            title += ' - %s' % subtitle
+        title = title.strip()
+
+        return {
+            'id': video_id,
+            'title': title,
+            'thumbnail': image,
+            'duration': duration,
+            'timestamp': timestamp,
+            'is_live': is_live,
+            'formats': formats,
+            'subtitles': subtitles,
+        }
+        info = self._download_json(
+            'https://player.webservices.francetelevisions.fr/v1/videos/%s' % video_id,
+            video_id, 'Downloading video JSON', query={
+                'device_type': 'desktop',
+                'browser': 'chrome',
+            })
+        #'https://k7.ftven.fr/videos/%s?player_version=5.61.1&domain=www.france.tv&device_type=desktop&browser=firefox&video_product_id=3409936'
         if info.get('status') == 'NOK':
             raise ExtractorError(
                 '%s returned error: %s' % (self.IE_NAME, info['message']),
