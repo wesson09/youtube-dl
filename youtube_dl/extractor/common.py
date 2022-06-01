@@ -1732,7 +1732,7 @@ class InfoExtractor(object):
         # clearly detect media playlist with this criterion.
         format_note=''
         if '#EXT-X-TARGETDURATION' in m3u8_doc:  # media playlist, return as is
-            if not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist tagged 'live_blacklist' to be ignored later
+            if ext!='srt' and not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist tagged 'live_blacklist' to be ignored later
                format_note = 'live_blacklist'
                return True,[{}],{}
             # get all fragments uri
@@ -1773,7 +1773,7 @@ class InfoExtractor(object):
                 for v in (m3u8_id, group_id, name):
                     if v:
                         format_id.append(v)
-                live,subformat,subs = self._extract_m3u8_live_and_formats(format_url(media.get('URI')), '-'.join(format_id), 'mp4')
+                live,subformat,subs = self._extract_m3u8_live_and_formats(format_url(media.get('URI')), '-'.join(format_id), 'srt')
                 suburl= subformat[0]['fragments'][0]['url']
                 #urlsub=compat_urlparse(suburl);
 
@@ -1861,6 +1861,8 @@ class InfoExtractor(object):
                 manifest_url = format_url(line.strip())
 
                 sublive,sub, subtitleformats  = self._extract_m3u8_live_and_formats(manifest_url, '-'.join(format_id), 'mp4',fatal=False)
+                if len(sub)==0:#4040
+                    continue
                 if sublive:
                     live=True;
 
@@ -2752,7 +2754,7 @@ class InfoExtractor(object):
                     'url': full_url,
                     'vcodec': 'none' if cur_media_type == 'audio' else None,
                 }]
-            return live, is_plain_url, formats
+            return  is_plain_url, live, formats
 
         entries = []
         # amp-video and amp-audio are very similar to their HTML5 counterparts
