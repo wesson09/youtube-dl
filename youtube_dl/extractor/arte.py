@@ -95,6 +95,8 @@ class ArteTVIE(ArteTVBaseIE):
         video_id = mobj.group('id')
         API_VERSION = mobj.group('API_VERSION')
         lang = mobj.group('lang')  or mobj.group('lang_2')
+        if API_VERSION is None:
+            API_VERSION='v2'
 
         info = self._download_json(
             '%s/config/%s/%s' % ( self._API_BASE%API_VERSION, lang, video_id), video_id)
