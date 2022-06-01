@@ -91,7 +91,11 @@ class LivestreamIE(InfoExtractor):
 
     def _extract_video_info(self, video_data):
         video_id = compat_str(video_data['id'])
-
+        # cok=''
+        # for f in self.mycookies:
+        #     cok=cok+f+'='+self.mycookies[f]+';';
+        # headers={'Cookie':cok};
+        is_live=False
         FORMAT_KEYS = (
             ('sd', 'progressive_url'),
             ('hd', 'progressive_url_hd'),
@@ -223,6 +227,8 @@ class LivestreamIE(InfoExtractor):
         return self.playlist_result(entries, event_id, event_data['full_name'])
 
     def _real_extract(self, url):
+
+        self.mycookies = self._get_cookies('https://new.livestream.com')
         mobj = re.match(self._VALID_URL, url)
         video_id = mobj.group('id')
         event = mobj.group('event_id') or mobj.group('event_name')
