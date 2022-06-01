@@ -1677,7 +1677,6 @@ std_headers = {
     'Accept-Language': 'en-us,en;q=0.5',
 }
 
-
 USER_AGENTS = {
     'Safari': 'Mozilla/5.0 (X11; Linux x86_64; rv:10.0) AppleWebKit/533.20.25 (KHTML, like Gecko) Version/5.0.4 Safari/533.20.27',
 }
@@ -4520,7 +4519,7 @@ def age_restricted(content_limit, age_limit):
 def is_json(first_bytes):
     try:
         dec = first_bytes.decode('utf-8')
-        if dec.index('!function')==0:#blacklist consent.php (kind of js?)
+        if dec.find('!function')==0:#blacklist consent.php (kind of js?)
             return True
         return dec[0] in['[','{',
                          #blacklist js too
