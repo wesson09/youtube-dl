@@ -1,11 +1,15 @@
 # coding: utf-8
+
 from __future__ import unicode_literals
+from ..utils import  (
+    std_headers,
+)
+
+from .common import InfoExtractor;
+
 
 import base64
 import re
-
-from .common import InfoExtractor
-
 
 class CloudflareStreamIE(InfoExtractor):
     _DOMAIN_RE = r'(?:cloudflarestream\.com|(?:videodelivery|bytehighway)\.net)'
@@ -50,11 +54,32 @@ class CloudflareStreamIE(InfoExtractor):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
+        std_headers.clear() #prevent any additional headers
         domain = 'bytehighway.net' if 'bytehighway.net/' in url else 'videodelivery.net'
         base_url = 'https://%s/%s/' % (domain, video_id)
         if '.' in video_id:
-            video_id = self._parse_json(base64.urlsafe_b64decode(
-                video_id.split('.')[1]), video_id)['sub']
+            t=video_id.split('.')[1]
+            #add padding in order b64decode works
+            pad = ''
+            while len(pad)<8:
+                try:
+                    t = base64.urlsafe_b64decode(t+pad)
+                    pad = 'correct padding found'
+                except:
+                    # add extra padding
+                    pad = pad +'p'
+            con = True
+            #remove extra characters generated with padding
+            while con:
+                try:
+                    video_id = self._parse_json(t, video_id)['sub']
+                    con = False
+                except:
+                    # remove extra padding
+                    t = t[0:len(t) - 1]
+                    con = len(t)>0
+
+
         manifest_base_url = base_url + 'manifest/video.'
 
         formats = self._extract_m3u8_formats(
