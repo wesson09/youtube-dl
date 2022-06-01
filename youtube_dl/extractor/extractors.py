@@ -551,6 +551,7 @@ from .jwplatform import JWPlatformIE
 from .kakao import KakaoIE
 from .kaltura import KalturaIE
 from .kankan import KankanIE
+from .kavimo import KavimoIE
 from .karaoketv import KaraoketvIE
 from .karrierevideos import KarriereVideosIE
 from .keezmovies import KeezMoviesIE
@@ -985,6 +986,7 @@ from .presstv import PressTVIE
 from .prosiebensat1 import ProSiebenSat1IE
 from .puls4 import Puls4IE
 from .pyvideo import PyvideoIE
+from .qpic import (QPicIE,QPicEXTIE)
 from .qqmusic import (
     QQMusicIE,
     QQMusicSingerIE,
