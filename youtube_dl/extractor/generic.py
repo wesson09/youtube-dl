@@ -2338,6 +2338,135 @@ class GenericIE(InfoExtractor):
             'title': title,
         }
 
+    def _recursjsonbykey(self,json,regexkey):
+        #
+        for j in json:
+            if regexkey.match(j):
+                return json[j]
+        for j in json:
+            val=json[j]
+            if  ((type(val) is dict) or (type(val) is list)):
+                ret=self._recursjsonbykey(j,regexkey)
+                if ret is not None:
+                    return ret
+        return None
+
+    cpt=0
+    def _createurltree(self,jsonname,json,urltree,d):
+        lurltree={}
+
+        lkeys=[]
+
+        if type(json) is dict:
+            lkeys=json.keys()
+        else:
+            for i in range(0,len(json)):
+                lkeys.append(i)
+        for j in lkeys:
+            self.cpt=self.cpt+1
+            val=json[j]
+            if isinstance(val, str):# or(type(val) is list)):
+                #recursiv
+            #     self._createurltree(val, lurltree)
+            # else:
+                #terminnal
+                    if json[j][0:4]=='http':#isurl
+                        #check duplicated urls at this level
+                        found=False
+                        for itdict in lurltree:
+                            for i in  lurltree[itdict]:
+                                if str(lurltree[itdict][i])==json[j]:
+                                    found=True
+                                    break
+                        if not found:
+                            lurltree['my'+str(self.cpt)]={'url':json[j]}
+                            #seek width at same level and lower
+                            w=self._recursjsonbykey(json,re.compile('^w$|width'))
+                            if w is not None:
+                                lurltree['my'+str(self.cpt)]={'url':json[j],'width':w}
+
+
+        # if len(lurltree) != 0:
+        #     if len(urltree)==0:#first time we find something:substitute urltree with lurltree
+        #         urltree.update(lurltree)
+        #     else:   #else add a new level
+        #         urltree[jsonname]=lurltree
+
+        curd=d;
+        for j in lkeys:
+            val=json[j]
+            if  ((type(val) is dict) or (type(val) is list)):
+                if len(lurltree)==0:
+                    d=max(curd,self._createurltree(j,json[j], lurltree,curd+1))
+                else:
+                    d=max(curd,self._createurltree(j,json[j], lurltree,curd+1))
+        #check if urltree haven't any url and  merge
+        hasterminal = False
+        for i in lurltree:
+            if lurltree[i].get('url'):
+                hasterminal=True
+        if not hasterminal:
+
+            lkeys=list(lurltree.keys());
+            for i in lkeys:
+                ttree=lurltree[i]
+                lurltree.pop(i)
+                lurltree.update(ttree)
+
+        if len(lurltree) != 0:
+                urltree['my'+str(jsonname)]=lurltree
+
+        return d
+
+
+
+
+
+    def findStandardURLTreeInJson(self,video_id, json):
+        lurltree={}
+        d=0
+        d=self._createurltree('root',json,lurltree,0)
+
+        #last recursion to remove useless root if necessary
+        hasterminal = False
+        for i in lurltree:
+            if lurltree[i].get('url'):
+                hasterminal = True
+        if not hasterminal:
+
+            lkeys = list(lurltree.keys());
+            for i in lkeys:
+                ttree = lurltree[i]
+                lurltree.pop(i)
+                lurltree.update(ttree)
+
+        if len(lurltree)==0:
+            return None
+
+        info_dict={'id':video_id,'title':video_id}
+        formats=[]
+        for j in lurltree:
+            #for i in urltree[j]:
+                print(lurltree[j]['url'])
+
+                if lurltree[j].get('width'):
+                    formats.append(
+                        {'format_id':str(j),
+                        'url':lurltree[j]['url'],
+                        'width':lurltree[j]['width']
+                         })
+
+        if len(formats)==0:
+            #no direct stream formats : probe url for standards
+            for j in lurltree:
+                    if not lurltree[j].get('width'):
+                        ret=self._real_extract(lurltree[j]['url'])
+                        if ret is not None:
+                            return ret
+            return None
+        info_dict['formats']=formats
+        return info_dict
+
     def _real_extract(self, url):
         if url.startswith('//'):
             return self.url_result(self.http_scheme() + url)
@@ -2470,6 +2599,7 @@ class GenericIE(InfoExtractor):
                 }]
                 if tryext!='':
                     formats[0]['ext']=tryext
+                    info_dict['ext']=tryext
                 info_dict['direct'] = True
             self._sort_formats(formats)
             info_dict['formats'] = formats
@@ -2482,7 +2612,7 @@ class GenericIE(InfoExtractor):
                 '%s on generic information extractor.' % ('Forcing' if force else 'Falling back'))
 
         if not full_response:
-            request = sanitized_Request(url)
+            request = sanitized_Request(url,headers=std_headers)
             # Some webservers may serve compressed content of rather big size (e.g. gzipped flac)
             # making it impossible to download only chunk of the file (yet we need only 512kB to
             # test whether it's HTML or not). According to youtube-dl default Accept-Encoding
@@ -2503,7 +2633,9 @@ class GenericIE(InfoExtractor):
             return info_dict
         # Maybe it's a direct link to a video?
         # Be careful not to download the whole thing!
-        if  (not is_html(first_bytes)) and (not is_json(first_bytes)):
+        isjson = is_json(first_bytes)
+        ishtml = is_html(first_bytes)
+        if (not ishtml) and (not isjson):
             if len(first_bytes) < 128:  # HTML should be att least 120 bytes
                 return;
             self._downloader.report_warning(
@@ -2521,6 +2653,11 @@ class GenericIE(InfoExtractor):
             webpage = self._download_webpage(url, video_id)
 
         self.report_extraction(video_id)
+
+        if isjson:
+            res=self.findStandardURLTreeInJson(video_id, self._parse_json(webpage,video_id))
+            if res is not None:
+                return res
 
         # Is it an RSS feed, a SMIL file, an XSPF playlist or a MPD manifest?
         try:
