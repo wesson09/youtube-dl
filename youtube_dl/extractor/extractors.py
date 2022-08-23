@@ -735,6 +735,7 @@ from .myvi import (
     MyviEmbedIE,
 )
 from .myvidster import MyVidsterIE
+from .nakedcom import NakedIE
 from .nationalgeographic import (
     NationalGeographicVideoIE,
     NationalGeographicTVIE,
@@ -1278,7 +1279,7 @@ from .thisoldhouse import ThisOldHouseIE
 from .threeqsdn import ThreeQSDNIE
 from .tiktok import (
     TikTokIE,
-    TikTokUserIE,
+    #TikTokUserIE, too slow to extract ALL video
 )
 from .tinypic import TinyPicIE
 from .tmz import (
@@ -1392,6 +1393,7 @@ from .twitter import (
     TwitterIE,
     TwitterAmplifyIE,
     TwitterBroadcastIE,
+   # TwitterVSOIE,
 )
 # from .udemy import ( broken and work with HLS
 #     UdemyIE,
@@ -1632,7 +1634,7 @@ from .youtube import (
     YoutubeIE,
     YoutubeFavouritesIE,
     YoutubeHistoryIE,
-    YoutubeTabIE,
+    #YoutubeTabIE,
     YoutubePlaylistIE,
     YoutubeRecommendedIE,
     YoutubeSearchDateIE,
