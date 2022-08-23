@@ -47,7 +47,8 @@ class FacebookIE(InfoExtractor):
                                 story\.php|
                                 watch(?:/live)?/?
                             )\?(?:.*?)(?:v|video_id|story_fbid)=|
-                            [^/]+/videos/(?:[^/]+/)?|
+                            [^/]+/(videos|reel)/(?:[^/]+/)?|
+                            reel/(?:[^/]+/)?|
                             [^/]+/posts/|
                             groups/[^/]+/permalink/|
                             watchparty/
@@ -447,6 +448,15 @@ class FacebookIE(InfoExtractor):
                     q = qualities(['sd', 'hd'])
                     for (suffix, format_id) in [('', 'sd'), ('_quality_hd', 'hd')]:
                         playable_url = video.get('playable_url' + suffix)
+                        if not playable_url:#try shorts pattern
+                            try:
+
+                                title = video['creation_story'].get('message')['text']
+                                video=video['creation_story']['short_form_video_context']['playback_video']
+                                playable_url = video.get('playable_url' + suffix);
+                            except:
+                                continue
+
                         if not playable_url:
                             continue
                         formats.append({
@@ -457,16 +467,20 @@ class FacebookIE(InfoExtractor):
                     extract_dash_manifest(video, formats)
                     process_formats(formats)
                     v_id = video.get('videoId') or video.get('id') or video_id
+                    thumb=video
+                    if thumb.get('preferred_thumbnail'):
+                        thumb=thumb['preferred_thumbnail']
                     info = {
                         'id': v_id,
                         'formats': formats,
-                        'thumbnail': try_get(video, lambda x: x['thumbnailImage']['uri']),
+                        'thumbnail': try_get(thumb, lambda x: x['image']['uri']),
                         'uploader_id': try_get(video, lambda x: x['owner']['id']),
                         'timestamp': int_or_none(video.get('publish_time')),
                         'duration': float_or_none(video.get('playable_duration_in_ms'), 1000),
                     }
                     description = try_get(video, lambda x: x['savable_description']['text'])
-                    title = video.get('name')
+                    if not title:
+                        title = video.get('name')
                     if title:
                         info.update({
                             'title': title,
@@ -594,6 +608,10 @@ class FacebookIE(InfoExtractor):
 
         if not video_data:
             raise ExtractorError('Cannot parse data')
+        todecode=tahoe_js_data['payload']['video']['markup']['__html'];
+
+        m=self._search_regex(r'''<img class=\"[^\"]+\" src=\"([^\"]+)\"''',todecode,'seek thumbnail')
+
 
         if len(video_data) > 1:
             entries = []
@@ -605,6 +623,9 @@ class FacebookIE(InfoExtractor):
                     url, video_url), self.ie_key(), v[0].get('video_id')))
             return self.playlist_result(entries, video_id)
         video_data = video_data[0]
+        m=m.replace('&amp;','&');
+        if len(m) > 0:
+            thumbnail=m
 
         formats = []
         subtitles = {}
@@ -656,7 +677,10 @@ class FacebookIE(InfoExtractor):
         timestamp = int_or_none(self._search_regex(
             r'<abbr[^>]+data-utime=["\'](\d+)', webpage,
             'timestamp', default=None))
-        thumbnail = self._html_search_meta(['og:image', 'twitter:image'], webpage)
+        if  len(thumbnail)>0:#video_data.get('thumbnail'):
+            thumbnail=thumbnail#video_data['thumbnail']
+        else:
+            thumbnail = self._html_search_meta(['og:image', 'twitter:image'], webpage)
 
         view_count = parse_count(self._search_regex(
             r'\bviewCount\s*:\s*["\']([\d,.]+)', webpage, 'view count',
