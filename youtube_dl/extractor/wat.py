@@ -57,7 +57,7 @@ class WatIE(InfoExtractor):
         #     'http://www.wat.tv/interface/contentv4s/' + video_id, video_id)
         video_data = self._download_json(
             'https://mediainfo.tf1.fr/mediainfocombo/' + video_id,
-            video_id, query={'context': 'MYTF1'})
+            video_id, query={'context': 'MYTF1', 'pver': '4020003'})
         video_info = video_data['media']
 
         error_desc = video_info.get('error_desc')
@@ -69,25 +69,33 @@ class WatIE(InfoExtractor):
         title = video_info['title']
 
         formats = []
+        subtitles = {}
 
         def extract_formats(manifest_urls):
+            is_live=False
             for f, f_url in manifest_urls.items():
                 if not f_url:
                     continue
                 if f in ('dash', 'mpd'):
-                    formats.extend(self._extract_mpd_formats(
+                    is_live, fmts = self._extract_mpd_live_and_formats(
                         f_url.replace('://das-q1.tf1.fr/', '://das-q1-ssl.tf1.fr/'),
-                        video_id, mpd_id='dash', fatal=False))
+                        video_id, mpd_id='dash', fatal=False)
+
                 elif f == 'hls':
-                    formats.extend(self._extract_m3u8_formats(
+                    is_live, fmts ,subtit = self._extract_m3u8_live_and_formats(
                         f_url, video_id, 'mp4',
-                        'm3u8_native', m3u8_id='hls', fatal=False))
+                        'm3u8_native', m3u8_id='hls', fatal=False)
+                else:
+                    continue
+                formats.extend(fmts)
+                #self._merge_subtitles(subs, target=subtitles)
+            return is_live
 
         delivery = video_data.get('delivery') or {}
-        extract_formats({delivery.get('format'): delivery.get('url')})
+        is_live=extract_formats({delivery.get('format'): delivery.get('url')})
         if not formats:
             if delivery.get('drm'):
-                self.raise_drm_restricted('This video is DRM protected.')
+                self.report_drm(video_id)
             manifest_urls = self._download_json(
                 'http://www.wat.tv/get/webhtml/' + video_id, video_id, fatal=False)
             if manifest_urls:
@@ -103,4 +111,6 @@ class WatIE(InfoExtractor):
                 video_data, lambda x: x['mediametrie']['chapters'][0]['estatS4'])),
             'duration': int_or_none(video_info.get('duration')),
             'formats': formats,
+            'subtitles': subtitles,
+            'is_live': is_live,
         }
