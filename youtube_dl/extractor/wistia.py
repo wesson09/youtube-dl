@@ -37,6 +37,7 @@ class WistiaBaseIE(InfoExtractor):
 
         formats = []
         thumbnails = []
+        first_conversion=data['assets'][1]
         for a in data['assets']:
             aurl = a.get('url')
             if not aurl:
@@ -56,6 +57,14 @@ class WistiaBaseIE(InfoExtractor):
                 aext = a.get('ext')
                 display_name = a.get('display_name')
                 format_id = atype
+                if atype=='original' and aext=='':
+                    #original assumed mp4 video
+                    aext='mp4'
+                    streams=self._parse_json(first_conversion['metadata']['av_stream_metadata'],video_id)
+                else:
+                    streams=self._parse_json(a['metadata']['av_stream_metadata'],video_id)
+
+
                 if atype and atype.endswith('_video') and display_name:
                     format_id = '%s-%s' % (atype[:-6], display_name)
                 f = {
@@ -64,15 +73,17 @@ class WistiaBaseIE(InfoExtractor):
                     'tbr': int_or_none(a.get('bitrate')) or None,
                     'preference': 1 if atype == 'original' else None,
                 }
-                if display_name == 'Audio':
+                if not streams.get('Video') and streams.get('Audio') :#display_name == 'Audio':
                     f.update({
                         'vcodec': 'none',
+                        'acodec': streams['Audio']['Codec ID'],
                     })
                 else:
                     f.update({
                         'width': int_or_none(a.get('width')),
                         'height': int_or_none(a.get('height')),
-                        'vcodec': a.get('codec'),
+                        'vcodec': streams['Video']['Codec ID'],
+                        'acodec': streams['Audio']['Codec ID'],
                     })
                 if a.get('container') == 'm3u8' or aext == 'm3u8':
                     ts_f = f.copy()
