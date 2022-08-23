@@ -85,6 +85,18 @@ from ..utils import (
 )
 
 
+class LenientJSONDecoder(json.JSONDecoder):
+    def __init__(self, *args, transform_source=None, ignore_extra=False, **kwargs):
+        self.transform_source, self.ignore_extra = transform_source, ignore_extra
+        super().__init__(*args, **kwargs)
+
+    def decode(self, s):
+        if self.transform_source:
+            s = self.transform_source(s)
+        if self.ignore_extra:
+            return self.raw_decode(s.lstrip())[0]
+        return super().decode(s)
+
 class InfoExtractor(object):
     """Information Extractor class.
 
@@ -911,13 +923,12 @@ class InfoExtractor(object):
             expected_status=expected_status)
         return res if res is False else res[0]
 
-    def _parse_json(self, json_string, video_id, transform_source=None, fatal=True):
-        if transform_source:
-            json_string = transform_source(json_string)
+    def _parse_json(self, json_string, video_id, transform_source=None, fatal=True, **parser_kwargs):
         try:
-            return json.loads(json_string)
+            return json.loads(
+                json_string, cls=LenientJSONDecoder, strict=False, transform_source=transform_source, **parser_kwargs)
         except ValueError as ve:
-            errmsg = '%s: Failed to parse JSON ' % video_id
+            errmsg = f'{video_id}: Failed to parse JSON'
             if fatal:
                 raise ExtractorError(errmsg, cause=ve)
             else:
@@ -3026,6 +3037,7 @@ class InfoExtractor(object):
                     if not isinstance(track, dict):
                         continue
                     track_kind = track.get('kind')
+                    if not track_kind or not isinstance(track_kind, compat_str):
                     if not track_kind or not isinstance(track_kind, compat_str):
                         continue
                     if track_kind.lower() not in ('captions', 'subtitles'):
