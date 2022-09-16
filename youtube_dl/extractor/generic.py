@@ -2511,6 +2511,10 @@ class GenericIE(InfoExtractor):
         else:
             video_id = self._generic_id(url)
 
+        # hack id for generic with no meta
+        if video_id in ['master', 'index']:
+            video_id =  url
+
         #check websocket here
         if url.startswith('wss://'):
             f = {}
