@@ -6,8 +6,7 @@ import socket
 import time
 import random
 import re
-import urllib.request
-import ssl
+
 from .common import FileDownloader
 from ..compat import (
     compat_str,
@@ -24,8 +23,11 @@ from ..utils import (
     XAttrMetadataError,
     XAttrUnavailableError,
 )
-import urllib3
-from urllib3 import connection
+
+
+from Crypto.Hash import MD5
+from Crypto.Cipher import AES, Blowfish
+from binascii import a2b_hex, b2a_hex
 
 class HttpFD(FileDownloader):
     def real_download(self, filename, info_dict):
@@ -104,17 +106,13 @@ class HttpFD(FileDownloader):
                 range_end = ctx.data_len - 1
             has_range = range_start is not None
             ctx.has_range = has_range
-            request = urllib.request.Request(url, None, headers)
+            request = sanitized_Request(url, None, headers)
             if has_range:
                 set_range(request, range_start, range_end)
             # Establish connection
-            request.headers=headers
-            urllib3.disable_warnings()
             try:
                 try:
-                    http=urllib3.PoolManager( cert_reqs='CERT_NONE')
-                    ctx.data = http.request('GET', request.full_url, headers=headers, preload_content=False)
-                    #ctx.data = self.ydl.urlopen(request)
+                    ctx.data = self.ydl.urlopen(request)
                 except (compat_urllib_error.URLError, ) as err:
                     # reason may not be available, e.g. for urllib2.HTTPError on python 2.6
                     reason = getattr(err, 'reason', None)
@@ -151,7 +149,7 @@ class HttpFD(FileDownloader):
                     self.report_unable_to_resume()
                     ctx.resume_len = 0
                     ctx.open_mode = 'wb'
-                ctx.data_len = int_or_none(ctx.data.headers.get('Content-length', None))
+                ctx.data_len = int_or_none(ctx.data.info().get('Content-length', None))
                 return
             except (compat_urllib_error.HTTPError, ) as err:
                 if err.code == 416:
@@ -160,7 +158,7 @@ class HttpFD(FileDownloader):
                         # Open the connection again without the range header
                         ctx.data = self.ydl.urlopen(
                             sanitized_Request(url, None, headers))
-                        content_length = ctx.data.headers['Content-Length']
+                        content_length = ctx.data.info()['Content-Length']
                     except (compat_urllib_error.HTTPError, ) as err:
                         if err.code < 500 or err.code >= 600:
                             raise
@@ -200,8 +198,71 @@ class HttpFD(FileDownloader):
                     raise
                 raise RetryDownload(err)
 
+        def md5hex(data):
+            """ return hex string of md5 of the given string """
+            # type(data): bytes
+            # returns: bytes
+            h = MD5.new()
+            h.update(data)
+            return b2a_hex(h.digest())
+
+        def hexaescrypt(data, key):
+            """ returns hex string of aes encrypted data """
+            c = AES.new(key.encode(), AES.MODE_ECB)
+            return b2a_hex(c.encrypt(data))
+
+        def genurlkey(songid, md5origin, mediaver=4, fmt=1):
+            """ Calculate the deezer download url given the songid, origin and media+format """
+            data_concat = b'\xa4'.join(_ for _ in [md5origin.encode(),
+                                                   str(fmt).encode(),
+                                                   str(songid).encode(),
+                                                   str(mediaver).encode()])
+            data = b'\xa4'.join([md5hex(data_concat), data_concat]) + b'\xa4'
+            if len(data) % 16 != 0:
+                data += b'\0' * (16 - len(data) % 16)
+            return hexaescrypt(data, "jo6aey6haid2Teih")
+
+        def calcbfkey(songid):
+            """ Calculate the Blowfish decrypt key for a given songid """
+            key = b"g4el58wc0zvf9na1"
+            songid_md5 = md5hex(songid.encode())
+
+            xor_op = lambda i: chr(songid_md5[i] ^ songid_md5[i + 16] ^ key[i])
+            decrypt_key = "".join([xor_op(i) for i in range(16)])
+            return decrypt_key
+
+        def blowfishDecrypt(data, key):
+            iv = a2b_hex("0001020304050607")
+            c = Blowfish.new(key.encode(), Blowfish.MODE_CBC, iv)
+            return c.decrypt(data)
+
+        def decodefile(fh, key, fo):
+            """
+            decode   data from file  < fh>, and write to file  < fo>.
+            decode  using blowfish with  < key>.
+            Only every third 2048 byte block is encrypted.
+            """
+            blockSize = 2048
+            i = 0
+
+            while True:
+                data=fh.read(blockSize)
+                if not data:
+                    break
+
+                isEncrypted = ((i % 3) == 0)
+                isWholeBlock = len(data) == blockSize
+
+                if isEncrypted and isWholeBlock:
+                    data = blowfishDecrypt(data, key)
+
+                fo.write(data)
+                i += 1
+                if not isWholeBlock:
+                    break;
+
         def download():
-            data_len = ctx.data.headers.get(('Content-length').capitalize(), None)
+            data_len = ctx.data.info().get('Content-length', None)
 
             # Range HTTP header may be ignored/unsupported by a webserver
             # (e.g. extractor/scivee.py, extractor/bambuser.py).
@@ -239,11 +300,20 @@ class HttpFD(FileDownloader):
                 ctx.resume_len = byte_counter if to_stdout else os.path.getsize(encodeFilename(ctx.tmpfilename))
                 raise RetryDownload(e)
 
+            dzrkey=None
+            if info_dict.get('dzrdecode') and not dzrkey:
+                #decode frame if require
+                dzrid=info_dict['dzrdecode']
+                dzrkey=calcbfkey(dzrid)
+
+            framecount=-1
+
             while True:
+                framecount=framecount+1
+
                 try:
                     # Download and write
                     data_block = ctx.data.read(block_size if data_len is None else min(block_size, data_len - byte_counter))
-                    #data_block = ctx.data.data[:block_size if data_len is None else min(block_size, data_len - byte_counter)]
                 # socket.timeout is a subclass of socket.error but may not have
                 # errno set
                 except socket.timeout as e:
@@ -256,7 +326,6 @@ class HttpFD(FileDownloader):
                     raise
                 firsttime=byte_counter==0
                 byte_counter += len(data_block)
-
                 # exit loop when download is finished
                 if len(data_block) == 0:
                     break
@@ -307,7 +376,6 @@ class HttpFD(FileDownloader):
                                 #stop metadata request on second fail
                                 del self.params['onlinemetadata']
                 #             print('Error')
-
                 # Open destination file just in time
                 if ctx.stream is None:
                     try:
@@ -385,11 +453,20 @@ class HttpFD(FileDownloader):
                     retry(err)
                 raise err
 
-            self.try_rename(ctx.tmpfilename, ctx.filename)
+            if dzrkey:
+                fo=open(ctx.filename, "w+b")
+                fi=open(ctx.tmpfilename, "rb")
+                decodefile(fi, dzrkey, fo)
+                fo.close()
+                fi.close()
+                os.unlink(ctx.tmpfilename)
+            else:
+                self.try_rename(ctx.tmpfilename, ctx.filename)
+
 
             # Update file modification time
             if self.params.get('updatetime', True):
-                info_dict['filetime'] = self.try_utime(ctx.filename, ctx.data.headers.get('last-modified', None))
+                info_dict['filetime'] = self.try_utime(ctx.filename, ctx.data.info().get('last-modified', None))
 
             self._hook_progress({
                 'downloaded_bytes': byte_counter,
