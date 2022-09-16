@@ -4283,7 +4283,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                 #         msg + ' If you are not downloading private content, or your cookies are only for the first account and channel,'
                 #               ' pass "--extractor-args youtubetab:skip=authcheck" to skip this check',
                 #         expected=True)
-                self.report_warning(msg, only_once=True)
+                self.report_warning(msg)
             data = self._extract_tab_endpoint(url, item_id, ytcfg, fatal=fatal, default_client=default_client)
         return data, ytcfg
 
