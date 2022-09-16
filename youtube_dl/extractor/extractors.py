@@ -296,7 +296,11 @@ from .daum import (
 )
 from .dbtv import DBTVIE
 from .dctp import DctpTvIE
-from .deezer import DeezerPlaylistIE
+from .deezer import (
+    DeezerPlaylistIE,
+    DeezerTitleIE,
+    DeezerAlbumIE
+)
 from .democracynow import DemocracynowIE
 from .dfb import DFBIE
 from .dhm import DHMIE
@@ -1634,7 +1638,7 @@ from .youtube import (
     YoutubeIE,
     YoutubeFavouritesIE,
     YoutubeHistoryIE,
-    #YoutubeTabIE,
+    YoutubeTabIE,
     YoutubePlaylistIE,
     YoutubeRecommendedIE,
     YoutubeSearchDateIE,
