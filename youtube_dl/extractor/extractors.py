@@ -488,6 +488,7 @@ from .hotstar import (
 )
 from .howcast import HowcastIE
 from .howstuffworks import HowStuffWorksIE
+from .hrfernsehen import HRFernsehenIE
 from .hrti import (
     HRTiIE,
     HRTiPlaylistIE,
@@ -569,6 +570,7 @@ from .kinja import KinjaEmbedIE
 from .kinopoisk import KinoPoiskIE
 from .konserthusetplay import KonserthusetPlayIE
 from .krasview import KrasViewIE
+from .kth import KTHIE
 from .ku6 import Ku6IE
 from .kusi import KUSIIE
 from .kuwo import (
