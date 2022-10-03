@@ -18,7 +18,9 @@ from .compat import (
     compat_collections_chain_map as ChainMap,
     compat_itertools_zip_longest as zip_longest,
     compat_str,
+    compat_collections_abc
 )
+MutableMapping = compat_collections_abc.MutableMapping
 
 
 def _js_bit_op(op):
