@@ -1,6 +1,8 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+import re
+
 from .common import InfoExtractor
 from ..compat import compat_str
 from ..utils import (
@@ -87,7 +89,13 @@ class WatIE(InfoExtractor):
                         'm3u8_native', m3u8_id='hls', fatal=False)
                 else:
                     continue
+                #VSO lang tag: tag FR-fr stream with no audio description for autoselection (fr only: other lang will get audiodescription)
+                for f in fmts:
+                    m=re.findall('\_\d+', f['format_id'])
+                    if len(m)==0:
+                        f['lang']='fr-FR'
                 formats.extend(fmts)
+
                 #self._merge_subtitles(subs, target=subtitles)
             return is_live
 

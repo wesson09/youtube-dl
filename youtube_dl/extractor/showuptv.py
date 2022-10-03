@@ -113,11 +113,9 @@ def on_open_stream(wsr):
 
 
 class ShowUpTVIE(InfoExtractor):
-    _ID_RE = r'[\da-fA-F]+'
-    _COMMON_RE = r'//player\.zype\.com/embed/%s\.(?:js|json|html)\?.*?(?:access_token|(?:ap[ip]|player)_key)='
     _VALID_URL = r'https?://showup\.tv/(?P<id>.*)';
     _TEST = {
-        'url': 'https://player.zype.com/embed/5b400b834b32992a310622b9.js?api_key=jZ9GUhRmxcPvX7M3SlfejB6Hle9jyHTdk2jVxG7wOHPLODgncEKVdPYBhuz9iWXQ&autoplay=false&controls=true&da=false',
+        'url': 'https://showup.tv/o_n_a',
         'md5': 'eaee31d474c76a955bdaba02a505c595',
         'info_dict': {
             'id': '5b400b834b32992a310622b9',
@@ -130,28 +128,20 @@ class ShowUpTVIE(InfoExtractor):
         },
     }
 
-    @staticmethod
-    def _extract_urls(webpage):
-        return [
-            mobj.group('url')
-            for mobj in re.finditer(
-                r'<script[^>]+\bsrc=(["\'])(?P<url>(?:https?:)?%s.+?)\1' % (ZypeIE._COMMON_RE % ZypeIE._ID_RE),
-                webpage)]
-
     def _real_extract(self, url):
         video_id = self._match_id(url)
         webpage=self._download_webpage(url,video_id,headers={
                     "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
                     "Accept-Encoding": "gzip, deflate, br",
-            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                    "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
                     "Sec-Fetch-Dest": "document",
                     "Sec-Fetch-Mode": "navigate",
                     "Sec-Fetch-Site": "none",
                     "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests":"1",
-            "Cache-Control":"no-cache",
-            "Cookie":"accept_rules=true; wsUID=f07bd0f061a073a56d5e0e0f1b0ece80; __utma=185028331.1220171536.1641203129.1641203129.1641288547.2; __utmc=185028331; __utmz=185028331.1641288547.2.2.utmcsr=www.google.com|utmccn=(referral)|utmcmd=referral|utmcct=/; waPlayer-volumev2=100; waPlayer-backup-volumev2=100; currWatchedTimeSeconds3870041=146630; __utmb=185028331.4.10.1641288547; currWatchedTimeSeconds3863214=1185; currWatchedTimeSeconds1322941=1025; showup=b85ab1db318a31fe75cccc3fb54f78dd",
-            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
+                    "Upgrade-Insecure-Requests":"1",
+                    "Cache-Control":"no-cache",
+                    "Cookie":"accept_rules=true; wsUID=f07bd0f061a073a56d5e0e0f1b0ece80; __utma=185028331.1220171536.1641203129.1641203129.1641288547.2; __utmc=185028331; __utmz=185028331.1641288547.2.2.utmcsr=www.google.com|utmccn=(referral)|utmcmd=referral|utmcct=/; waPlayer-volumev2=100; waPlayer-backup-volumev2=100; currWatchedTimeSeconds3870041=146630; __utmb=185028331.4.10.1641288547; currWatchedTimeSeconds3863214=1185; currWatchedTimeSeconds1322941=1025; showup=b85ab1db318a31fe75cccc3fb54f78dd",
+                    "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"
         })
         f = re.findall(
                 # r'availableDesktopStreamQueue[\s|.]*=[\s|.]*\[{"url":"(?P<URL>[^"]*)","codec":"(?P<CODEC>[^"]*)","bitrate":(?P<bitrate>[^,]*)',
@@ -188,16 +178,21 @@ class ShowUpTVIE(InfoExtractor):
         return {
             'id': video_id, 'ext': 'mp4',
             # 'display_id': display_id,
-            'title': 'title',
-            # 'description': dict_get(video, ('description', 'caption'),
-            #                         try_get(video, lambda x: x['meta']['description'])),
+            'title': video_id,
+            'description': self._html_search_meta('description',webpage, default=None),
             'thumbnail': r[0][4],
-            # 'timestamp': int_or_none(video.get('date')),
-            # 'duration': int_or_none(video.get('length')),
             'formats': formats,
             'is_live': True,
-
         }
+
+
+
+
+
+
+
+
+
 
         #websocket.enableTrace(True)
 

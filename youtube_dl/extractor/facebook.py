@@ -445,6 +445,7 @@ class FacebookIE(InfoExtractor):
 
                 def parse_graphql_video(video):
                     formats = []
+                    title=False
                     q = qualities(['sd', 'hd'])
                     for (suffix, format_id) in [('', 'sd'), ('_quality_hd', 'hd')]:
                         playable_url = video.get('playable_url' + suffix)

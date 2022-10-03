@@ -85,7 +85,8 @@ class CoubIE(InfoExtractor):
                     'url': item_url,
                     'format_id': '%s-%s-%s' % (HTML5, kind, quality),
                     'filesize': int_or_none(item.get('size')),
-                    'vcodec': 'none' if kind == 'audio' else None,
+                    'vcodec': 'h264..likely' if kind == 'video' else None,
+                    'acodec': 'aac..likely' if kind == 'audio' else None,
                     'quality': quality_key(quality),
                     'preference': preference_key(HTML5),
                 })

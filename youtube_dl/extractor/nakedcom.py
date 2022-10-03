@@ -40,28 +40,20 @@ class NakedIE(InfoExtractor):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
+        model=False
         webpage = self._download_webpage(url, video_id,   headers=std_headers)
-        media_id = self._html_search_regex(
-            r'\'models\':\s*\[\s*(?P<MODELS>.*)\s*,\s*\],\s*\'favorites\'',
-            webpage, 'media id', group='MODELS')
-        models=self._parse_json('['+media_id+']',video_id);
-        for mod in models:
-            if mod['model_seo_name']==video_id:
-                model=mod
-                break;
-
         formats=[]
-        if model:
-            media_id=model['model_id']
+        media_id=False
+        girl=self._download_json('https://ws.vs3.com/rooms/check-model-status.php?model_name='+video_id
+                                 , video_id, headers=std_headers);
+        media_id=str(girl['model_id'])
+        streams=self._download_json('https://www.naked.com/ws/chat/get-stream-urls.php?model_id='+media_id,
+                                    video_id, headers=std_headers)
 
-            streams=self._download_json('https://www.naked.com/ws/chat/get-stream-urls.php?model_id='+media_id,video_id,
-                headers=std_headers);
-
-
-            for hls in streams['data']['hls']:
-                #hls=streams['data']['hls'][0]
-                dlive, m3u8_formats, subs = self._extract_m3u8_live_and_formats( 'https:'+hls['url'], video_id, 'mp4',  m3u8_id=hls['name'], fatal=False)
-                formats.extend(m3u8_formats)
+        for hls in streams['data']['hls']:
+            #hls=streams['data']['hls'][0]
+            dlive, m3u8_formats, subs = self._extract_m3u8_live_and_formats( 'https:'+hls['url'], video_id, 'mp4',  m3u8_id=hls['name'], fatal=False)
+            formats.extend(m3u8_formats)
         return {
             'id': video_id,
             'display_id': video_id,

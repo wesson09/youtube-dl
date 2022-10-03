@@ -9,6 +9,7 @@ from ..utils import (
     urljoin,
     sanitized_Request,
     urlencode_postdata,
+std_headers
 )
 
 
@@ -39,14 +40,18 @@ class QPicIE(InfoExtractor):
 
     def _robustregex(self,variable,reg,webpage):#(?P<id>\d+)
         try:
-            return self._search_regex(r'var '+variable+' = "'+reg, webpage, variable, group='id')
+            return self._search_regex(r'(var )?'+variable+' = \''+reg, webpage, variable, group='id')
         except:
             try:
-                return self._search_regex(r'var ' + variable + ' = "" \|\| "' + reg, webpage, variable,
+                return self._search_regex(r'(var )?' + variable + ' = \'\' \|\| \'' + reg, webpage, variable,
                                           group='id')
             except:
-                    return self._search_regex(r'var ' + variable + ' = "" \|\| "" \|\| "' + reg, webpage, variable,
+                try:
+                    return self._search_regex(r'(var )?' + variable + ' = \'\' \|\| \'\' \|\| \'' + reg, webpage, variable,
                                               group='id')
+                except:
+                   return self._search_regex( variable + r'\=' + reg, webpage, variable,
+                                          group='id')
 
     def _real_extract(self, url):
         self.video_id = self._match_id(url)
@@ -54,10 +59,10 @@ class QPicIE(InfoExtractor):
 #       var mid = "" || "" || "2247564867";
 #       var biz = "" || "MzUxMDY1MDU5MA==";
 #       var sessionid = "" || "svr_d1267e42c38";'
-        webpage = self._download_webpage(url, self.video_id)
-        self.mid=self.  _robustregex('mid','(?P<id>[^"]+)',webpage)
-        self.bid=self.  _robustregex('biz','(?P<id>[^"]+)',webpage)
-        self.sessionid=self.  _robustregex('sessionid','(?P<id>[^"]+)',webpage)
+        webpage = self._download_webpage(url, self.video_id,headers=std_headers)
+        self.mid=self.  _robustregex('mid','(?P<id>[^\&]+)',webpage)
+        self.bid=self.  _robustregex('biz','(?P<id>[^\&]+)',webpage)
+        self.sessionid=self.  _robustregex('sessionid',r'(?P<id>[^\']+)',webpage)
         try:
             self.msg_title=self._search_regex(r'var msg_title = \'(?P<id>[^\']+)\'', webpage, 'msg_title',  group='id')
         except:
@@ -66,10 +71,8 @@ class QPicIE(InfoExtractor):
             self.msg_desc=self._search_regex(r'var msg_desc = htmlDecode\(\"(?P<id>[^\"]+)\"', webpage, 'msg_desc',  group='id')
         except:
             self.msg_desc =self.video_id
-        self.mpvid=self._search_regex(
-            r'data-mpvid="(?P<id>[^"]+)"', webpage, 'mpvid',
-            group='id')
-
+        #self._search_regex( r'data-mpvid="(?P<id>[^"]+)"', webpage, 'mpvid',group='id')
+        self.mpvid=self._search_regex( r'vid\: xml[^\:]+\:\s*\'(?P<id>[^\']*)', webpage, 'mpvid',group='id')
         cookies = self._get_cookies('https://mp.weixin.qq.com')
         self.Cookie=''
         for c in cookies:
@@ -140,7 +143,7 @@ class QPicIE(InfoExtractor):
 
 class QPicEXTIE(QPicIE):
     _VALID_URL = r'https://(?:mp\.)?weixin\.qq\.com/s\?__biz=(?P<biz>[^&]+)&mid=(?P<mid>[^&]+)&idx=(?P<idx>[^&]+)&sn=(?P<sn>[^&]+)&chksm=(?P<chksm>[^&]+)&scene=(?P<scene>\d+)'
-
+    #_VALID_URL = r'https://(?:finder\.video)?\.qq\.com/s\?__biz=(?P<biz>[^&]+)&mid=(?P<mid>[^&]+)&idx=(?P<idx>[^&]+)&sn=(?P<sn>[^&]+)&chksm=(?P<chksm>[^&]+)&scene=(?P<scene>\d+)'
 
     def _real_extract(self, url):
         m=self._match_valid_url(url)

@@ -253,6 +253,7 @@ from .comedycentral import (
     ComedyCentralIE,
     ComedyCentralTVIE,
 )
+from .comedyshow import ComedyShowIE
 from .commonmistakes import CommonMistakesIE, UnicodeBOMIE
 from .commonprotocols import (
     MmsIE,

@@ -567,8 +567,8 @@ class InfoExtractor(object):
             raise
         except compat_http_client.IncompleteRead as e:
             raise ExtractorError('A network error has occurred.', cause=e, expected=True)
-        except (KeyError, StopIteration) as e:
-            raise ExtractorError('An extractor error has occurred.', cause=e)
+        # except (KeyError, StopIteration) as e:
+        #     raise ExtractorError('An extractor error has occurred.', cause=e)
 
     def __maybe_fake_ip_and_retry(self, countries):
         if (not self._downloader.params.get('geo_bypass_country', None)
@@ -1696,10 +1696,13 @@ class InfoExtractor(object):
             errnote=errnote or 'Failed to download m3u8 information',
             fatal=fatal, data=data, headers=headers, query=query)
 
-        if res is False:
+        if res is False :
             return False,[],{}
 
         m3u8_doc, urlh = res
+
+        if not m3u8_doc.startswith('#EXTM3U'):
+            return False,[],{}
         m3u8_url = urlh.geturl()
 
         return self._parse_m3u8_formats(

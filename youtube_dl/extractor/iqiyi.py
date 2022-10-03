@@ -19,6 +19,7 @@ from ..utils import (
     ExtractorError,
     ohdave_rsa_encrypt,
     remove_start,
+std_headers
 )
 
 
@@ -160,6 +161,7 @@ class IqiyiIE(InfoExtractor):
     IE_DESC = '爱奇艺'
 
     _VALID_URL = r'https?://(?:(?:[^.]+\.)?iqiyi\.com|www\.pps\.tv)/.+\.html'
+    _VALID_URL = r'https?://(?:(?:[^.]+\.)?iq(iyi)?\.com|www\.pps\.tv)/.+'
 
     _NETRC_MACHINE = 'iqiyi'
 
@@ -298,10 +300,28 @@ class IqiyiIE(InfoExtractor):
             't': tm,
         }
 
-        return self._download_json(
+        ret= self._download_json(
             'http://cache.m.iqiyi.com/jp/tmts/%s/%s/' % (tvid, video_id),
             video_id, transform_source=lambda s: remove_start(s, 'var tvInfoJs='),
-            query=params, headers=self.geo_verification_headers())
+            query=params, headers= self.geo_verification_headers())
+
+        if ret['code']=='A00110':#fails: try other api entry
+            params = {
+                'tvid': tvid,
+                'vid': video_id,
+                'src': '76f90cbd92f94a2e925d83e8ccd22cb7',
+                'sc': sc,
+                't': tm,
+                'uid':'',
+                'bid':300
+            }
+            ret = self._download_json(
+                'http://cache.video.iqiyi.com/dash',
+                video_id, transform_source=lambda s: remove_start(s, 'var tvInfoJs='),
+                query=params, headers=std_headers)
+
+
+        return ret
 
     def _extract_playlist(self, webpage):
         PAGE_SIZE = 50
@@ -338,21 +358,31 @@ class IqiyiIE(InfoExtractor):
 
     def _real_extract(self, url):
         webpage = self._download_webpage(
-            url, 'temp_id', note='download video page')
+            url, 'temp_id', note='download video page',headers=std_headers)
 
         # There's no simple way to determine whether an URL is a playlist or not
         # Sometimes there are playlist links in individual videos, so treat it
         # as a single video first
         tvid = self._search_regex(
             r'data-(?:player|shareplattrigger)-tvid\s*=\s*[\'"](\d+)', webpage, 'tvid', default=None)
+
+        if not tvid:
+            tvid = self._search_regex(
+                r'\{.*\"tvid\":(?P<ID>\d+)', webpage, 'tvid', default=None)
+        if not tvid:
+            tvid = re.findall(  r',\"tvId\"\:(?P<ID>\d+)', webpage )
+            tvid=tvid[0]
+            #self._search_regex(r'\{.*,\"tvId\":(?P<ID>\d+)', webpage, 'tvid', default=None)
         if tvid is None:
             playlist_result = self._extract_playlist(webpage)
             if playlist_result:
                 return playlist_result
             raise ExtractorError('Can\'t find any video')
 
-        video_id = self._search_regex(
-            r'data-(?:player|shareplattrigger)-videoid\s*=\s*[\'"]([a-f\d]+)', webpage, 'video_id')
+        video_id=self._search_regex(r'https?:\/\/api\.cupid\.qiyi[^\/]*\/[^\?]+\?.*\&u=(?P<videoid>[^\&]+)', webpage, 'video_id',default=None)
+        if not video_id:
+           video_id=self._search_regex(r'\"vid\":\"(?P<videoid>[^\"]+)', webpage, 'video_id',default=None)
+        #video_id = '2210211cb49065637f4c8abab04d2be6560bab'#self._search_regex(r'data-(?:player|shareplattrigger)-videoid\s*=\s*[\'"]([a-f\d]+)', webpage, 'video_id')
 
         formats = []
         for _ in range(5):
@@ -383,12 +413,12 @@ class IqiyiIE(InfoExtractor):
             self._sleep(5, video_id)
 
         self._sort_formats(formats)
-        title = (get_element_by_id('widget-videotitle', webpage)
-                 or clean_html(get_element_by_attribute('class', 'mod-play-tit', webpage))
-                 or self._html_search_regex(r'<span[^>]+data-videochanged-title="word"[^>]*>([^<]+)</span>', webpage, 'title'))
+        # title = (get_element_by_id('widget-videotitle', webpage)
+        #          or clean_html(get_element_by_attribute('class', 'mod-play-tit', webpage))
+        #          or self._html_search_regex(r'<span[^>]+data-videochanged-title="word"[^>]*>([^<]+)</span>', webpage, 'title'))
 
         return {
             'id': video_id,
-            'title': title,
+            'title': 'title',
             'formats': formats,
         }

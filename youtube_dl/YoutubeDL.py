@@ -1636,7 +1636,13 @@ class YoutubeDL(object):
             # json output
             full_format_info = info_dict.copy()
             full_format_info.update(format)
-            format['http_headers'] = self._calc_headers(full_format_info)
+            #format['http_headers'] = self._calc_headers(full_format_info)
+            #fix http_headers only if not setted
+            try:
+                kk=format['http_headers']
+            except:
+                format['http_headers'] = self._calc_headers(full_format_info)
+
         # Remove private housekeeping stuff
         if '__x_forwarded_for_ip' in info_dict:
             del info_dict['__x_forwarded_for_ip']
@@ -1991,11 +1997,11 @@ class YoutubeDL(object):
                 else:
                     # Just a single file
                     success = dl(filename, info_dict)
-            except (compat_urllib_error.URLError, compat_http_client.HTTPException, socket.error) as err:
-                self.report_error('unable to download video data: %s' % error_to_compat_str(err))
-                return
-            except (OSError, IOError) as err:
-                raise UnavailableVideoError(err)
+            # except (compat_urllib_error.URLError, compat_http_client.HTTPException, socket.error) as err:
+            #     self.report_error('unable to download video data: %s' % error_to_compat_str(err))
+            #     return
+            # except (OSError, IOError) as err:
+            #     raise UnavailableVideoError(err)
             except (ContentTooShortError, ) as err:
                 self.report_error('content too short (expected %s bytes and served %s)' % (err.expected, err.downloaded))
                 return
