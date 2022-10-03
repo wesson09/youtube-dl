@@ -1745,7 +1745,7 @@ class InfoExtractor(object):
         if '#EXT-X-TARGETDURATION' in m3u8_doc:  # media playlist, return as is
             if ext!='srt' and not '#EXT-X-ENDLIST' in m3u8_doc: # live media playlist tagged 'live_blacklist' to be ignored later
                format_note = 'live_blacklist'
-               return True,[{}],{}
+               #return True,[{}],{}
             # get all fragments uri
             fragments = []
             for line in m3u8_doc.splitlines():
@@ -3037,7 +3037,6 @@ class InfoExtractor(object):
                     if not isinstance(track, dict):
                         continue
                     track_kind = track.get('kind')
-                    if not track_kind or not isinstance(track_kind, compat_str):
                     if not track_kind or not isinstance(track_kind, compat_str):
                         continue
                     if track_kind.lower() not in ('captions', 'subtitles'):
