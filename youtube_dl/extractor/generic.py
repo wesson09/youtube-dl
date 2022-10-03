@@ -2569,7 +2569,7 @@ class GenericIE(InfoExtractor):
         m = re.match(r'^(?P<type>audio|video|application(?=/(?:ogg$|(?:vnd\.apple\.|x-)?mpegurl)))/(?P<format_id>[^;\s]+)', content_type)
         if m:
             content_length = head_response.headers.get('Content-Length', '0')
-            livedetected=full_response is not None # assume generic live servers don't allow head request (flv,icecast..)
+            livedetected=head_response is False and full_response is not None  # assume generic live servers don't allow head request (flv,icecast..)
             if not livedetected:
                 livedetected=content_length=='0' #or if no content length exposed
             format_id = compat_str(m.group('format_id'))
@@ -2580,15 +2580,19 @@ class GenericIE(InfoExtractor):
             else:
                 for headname in head_response.headers:
                     if headname.lower().startswith('icy'):
-                        livedetected=True
+                        livedetected = True
                         self._downloader.params['onlinemetadata'] = 2;  # interval between metadata request
                         self._downloader.params['urlmetadata'] = url;
                 #try to set an extension before it goes with filename
-                tryext='';
+                tryext=''
                 if content_type.startswith('audio'):
-                    tryext = format_id;
+                    tryext = format_id
                     if format_id=='mpeg':
                       tryext='mp3'
+                else:
+                    if content_type.startswith('video'):
+                      tryext = format_id
+
                 format_note = '';
                 if full_response is not None:
                     format_note='ydl_override' #indicate ffmpeg should not be used
