@@ -22,10 +22,10 @@ from ..compat import (
     compat_HTTPError,
     compat_parse_qs,
     compat_str,
+    compat_urllib_parse,
+    compat_urllib_parse_parse_qs as compat_parse_qs,
     compat_urllib_parse_unquote_plus,
-    compat_urllib_parse_urlencode,
     compat_urllib_parse_urlparse,
-    compat_urlparse,
 )
 from ..jsinterp import JSInterpreter
 from ..utils import (
@@ -50,7 +50,7 @@ from ..utils import (
     parse_count,
     parse_duration,
     parse_iso8601,
-    #parse_qs,
+    parse_qs,
     qualities,
     remove_end,
     remove_start,
@@ -62,16 +62,12 @@ from ..utils import (
     unescapeHTML,
     unified_strdate,
     unsmuggle_url,
+    update_url,
     update_url_query,
     url_or_none,
     urljoin,
     variadic,
 )
-
-
-
-def parse_qs(url):
-    return compat_urlparse.parse_qs(compat_urlparse.urlparse(url).query)
 
 def get_first(obj, keys, **kwargs):
     return traverse_obj(obj, (..., *variadic(keys)), **kwargs, get_all=False)
@@ -1076,7 +1072,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             },
         },
         {
-            'note': 'Age-gate video embedable only with clientScreen=EMBED',
+            'note': 'Age-gate video embeddable only with clientScreen=EMBED',
             'url': 'https://youtube.com/watch?v=Tq92D6wQ1mg',
             'info_dict': {
                 'id': 'Tq92D6wQ1mg',
@@ -1701,10 +1697,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
 
     @classmethod
     def suitable(cls, url):
-        #from ..utils import parse_qs
-
-        qs = compat_parse_qs(compat_urllib_parse_urlparse(url).query)
-        if qs.get('list', [None])[0]:
+        if parse_qs(url).get('list', [None])[0]:
             return False
         return super(YoutubeIE, cls).suitable(url)
 
@@ -1722,7 +1715,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         if player_url.startswith('//'):
             player_url = 'https:' + player_url
         elif not re.match(r'https?://', player_url):
-            player_url = compat_urlparse.urljoin(
+            player_url = compat_urllib_parse.urljoin(
                 'https://www.youtube.com', player_url)
         return player_url
 
@@ -1917,6 +1910,19 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
 
         return lambda s: jsi.extract_function_from_code(*func_code)([s])
 
+    def _unthrottle_format_urls(self, video_id, player_url, formats):
+        for fmt in formats:
+            parsed_fmt_url = compat_urllib_parse.urlparse(fmt['url'])
+            n_param = compat_parse_qs(parsed_fmt_url.query).get('n')
+            if not n_param:
+                continue
+            n_param = n_param[-1]
+            n_response = self._n_descramble(n_param, player_url, video_id)
+            if n_response is None:
+                # give up if descrambling failed
+                break
+            fmt['url'] = update_url(
+                parsed_fmt_url, query_update={'n': [n_response]})
     def _extract_signature_timestamp(self, video_id, player_url, ytcfg=None, fatal=False):
         """
         Extract signatureTimestamp (sts)
@@ -1948,20 +1954,17 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         if not playback_url:
             self.report_warning('Unable to mark watched')
             return
-        parsed_playback_url = compat_urlparse.urlparse(playback_url)
-        qs = compat_urlparse.parse_qs(parsed_playback_url.query)
 
         # cpn generation algorithm is reverse engineered from base.js.
         # In fact it works even with dummy cpn.
         CPN_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
         cpn = ''.join((CPN_ALPHABET[random.randint(0, 256) & 63] for _ in range(0, 16)))
 
-        qs.update({
-            'ver': ['2'],
-            'cpn': [cpn],
-        })
-        playback_url = compat_urlparse.urlunparse(
-            parsed_playback_url._replace(query=compat_urllib_parse_urlencode(qs, True)))
+        playback_url = update_url(
+            playback_url, query_update={
+                'ver': ['2'],
+                'cpn': [cpn],
+            })
 
         self._download_webpage(
             playback_url, video_id, 'Marking watched',
@@ -2869,7 +2872,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                 get_first(microformats, 'uploadDate')
                 or search_meta('uploadDate')),
             'uploader': get_first(video_details, 'author'),
-            'uploader_id': self._search_regex(r'/(?:channel|user)/([^/?&#]+)', owner_profile_url, 'uploader id') if owner_profile_url else None,
+            'uploader_id': self._search_regex(r'/(?:channel|user)/([^/?&#]+)', owner_profile_url, 'uploader id',fatal=False) if owner_profile_url else None,
             'uploader_url': owner_profile_url,
             'channel_id': channel_id,
             'channel_url': f'https://www.youtube.com/channel/{channel_id}' if channel_id else None,
@@ -4514,9 +4517,7 @@ class YoutubePlaylistIE(InfoExtractor):
     def suitable(cls, url):
         if YoutubeTabIE.suitable(url):
             return False
-        #from ..utils import parse_qs
-        qs = compat_parse_qs(compat_urllib_parse_urlparse(url).query)
-        if qs.get('v', [None])[0]:
+        if parse_qs(url).get('v', [None])[0]:
             return False
         return super(YoutubePlaylistIE, cls).suitable(url)
 
@@ -4693,11 +4694,10 @@ class YoutubeSearchURLIE(YoutubeSearchIE):
         return cls._VALID_URL
 
     def _real_extract(self, url):
-        qs =  compat_parse_qs(compat_urllib_parse_urlparse(url).query)
-        query = (qs.get('search_query') or qs.get('q'))[0]
-        self._SEARCH_PARAMS = qs.get('sp', ('',))[0]
-        return self._get_n_results(query, self._MAX_RESULTS)
-
+        qs = parse_qs(url)
+        query = (qs.get('search_query') or qs.get('q'))[-1]
+        params = qs.get('sp', ('',))[-1]
+        return self.playlist_result(self._search_results(query, params), query, query)
 
 class YoutubeFeedsInfoExtractor(YoutubeTabIE):
     """
