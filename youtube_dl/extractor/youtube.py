@@ -1869,7 +1869,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         if player_url.startswith('//'):
             player_url = 'https:' + player_url
         elif not re.match(r'https?://', player_url):
-            player_url = compat_urlparse.urljoin(
+            player_url = compat_urllib_parse.urljoin(
                 'https://www.youtube.com', player_url)
 
         sig_id = ('nsig_value', s)
@@ -4328,8 +4328,8 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
 
     def __real_extract(self, url, smuggled_data):
         item_id = self._match_id(url)
-        url = compat_urlparse.urlunparse(
-            compat_urlparse.urlparse(url)._replace(netloc='www.youtube.com'))
+        url = compat_urllib_parse.urlunparse(
+            compat_urllib_parse.urlparse(url)._replace(netloc='www.youtube.com'))
         compat_opts =[];# self.get_param('compat_opts', [])
 
         qs = parse_qs(url)

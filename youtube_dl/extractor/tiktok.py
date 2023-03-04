@@ -71,11 +71,11 @@ class TikTokBaseIE(InfoExtractor):
             self._set_cookie(self._API_HOSTNAME, 'sid_tt', webpage_cookies['sid_tt'].value)
         return self._download_json(
             'https://%s/aweme/v1/%s/' % (self._API_HOSTNAME, ep), video_id=video_id,
-            fatal=fatal, note=note, errnote=errnote, headers=std_headers
-            # {
-            #     'User-Agent': f'com.ss.android.ugc.trill/{manifest_app_version} (Linux; U; Android 10; en_US; Pixel 4; Build/QQ3A.200805.001; Cronet/58.0.2991.0)',
-            #     'Accept': 'application/json',
-            # }
+            fatal=fatal, note=note, errnote=errnote, headers={
+                'User-Agent': f'com.ss.android.ugc.trill/{manifest_app_version} (Linux; U; Android 10; en_US; Pixel 4; Build/QQ3A.200805.001; Cronet/58.0.2991.0)',
+                'Accept': 'application/json',
+            }
+            # std_headers
             , query=query)
 
     def _build_api_query(self, query, app_version, manifest_app_version):
